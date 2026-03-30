@@ -12,6 +12,12 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createServer } from "../src/server.js";
 import { validateApiKey } from "../src/auth.js";
 
+function getResourceMetadataUrl(req: VercelRequest): string {
+  const proto = req.headers["x-forwarded-proto"] || "https";
+  const host = req.headers.host || "sciweave-mcp.vercel.app";
+  return `${proto}://${host}/.well-known/oauth-protected-resource`;
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -40,6 +46,11 @@ export default async function handler(
   }
 
   if (!apiKey) {
+    // WWW-Authenticate header triggers OAuth flow in MCP clients
+    res.setHeader(
+      "WWW-Authenticate",
+      `Bearer resource_metadata="${getResourceMetadataUrl(req)}"`
+    );
     res.status(401).json({
       jsonrpc: "2.0",
       error: {
