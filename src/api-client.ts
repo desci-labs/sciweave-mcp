@@ -20,7 +20,16 @@ const ML_BACKEND_URL =
 const WEB_API_URL =
   process.env.SCIWEAVE_WEB_API_URL || "https://sciweave.com";
 
-function authHeaders(apiKey: string): Record<string, string> {
+/** Auth headers for sciweave-web API (sk-live_ keys via Bearer token) */
+function webAuthHeaders(apiKey: string): Record<string, string> {
+  return {
+    "Authorization": `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+}
+
+/** Auth headers for ML backend (api-key header) */
+function mlAuthHeaders(apiKey: string): Record<string, string> {
   return {
     "api-key": apiKey,
     "Content-Type": "application/json",
@@ -35,7 +44,7 @@ export async function listCollections(
   apiKey: string
 ): Promise<ResearchList[]> {
   const res = await fetch(`${WEB_API_URL}/api/lists`, {
-    headers: authHeaders(apiKey),
+    headers: webAuthHeaders(apiKey),
   });
   if (!res.ok) {
     throw new Error(`Failed to list collections: ${res.status} ${res.statusText}`);
@@ -49,7 +58,7 @@ export async function getCollectionPapers(
   listId: string
 ): Promise<Paper[]> {
   const res = await fetch(`${WEB_API_URL}/api/lists/${listId}/papers`, {
-    headers: authHeaders(apiKey),
+    headers: webAuthHeaders(apiKey),
   });
   if (!res.ok) {
     throw new Error(`Failed to get papers: ${res.status} ${res.statusText}`);
@@ -68,7 +77,7 @@ export async function getThread(
 ): Promise<ThreadResult> {
   const res = await fetch(
     `${ML_BACKEND_URL}/api/semantic-result/${threadId}`,
-    { headers: authHeaders(apiKey) }
+    { headers: mlAuthHeaders(apiKey) }
   );
   if (!res.ok) {
     throw new Error(`Failed to get thread: ${res.status} ${res.statusText}`);
@@ -113,7 +122,7 @@ export async function askWithCitations(
 
   const res = await fetch(`${ML_BACKEND_URL}/api/answer-with-citations`, {
     method: "POST",
-    headers: authHeaders(apiKey),
+    headers: mlAuthHeaders(apiKey),
     body: JSON.stringify(body),
   });
 

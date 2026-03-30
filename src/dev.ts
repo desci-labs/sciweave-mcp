@@ -67,7 +67,7 @@ const httpServer = createHttpServer(async (req, res) => {
     return;
   }
 
-  console.log(`[MCP] Authenticated as ${auth.email}`);
+  console.log(`[MCP] Authenticated as ${auth.userId ?? "user"}`);
 
   // Parse body for POST requests
   let body: unknown = undefined;

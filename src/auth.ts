@@ -1,30 +1,28 @@
 /**
  * API Key Authentication
  *
- * Validates API keys by calling the same nodes API endpoint that the
- * ML backend and sciweave-web use. No separate auth logic — we reuse
- * the existing infrastructure.
+ * Validates sk-live_ API keys by calling a sciweave-web API endpoint
+ * that checks the key against Supabase. This is the same validation
+ * the public API (v1/search, v1/chat) uses.
  */
 
-const NODES_API_URL =
-  process.env.SCIWEAVE_NODES_API_URL || "https://nodes-api.desci.com";
+const WEB_API_URL =
+  process.env.SCIWEAVE_WEB_API_URL || "https://sciweave.com";
 
 export interface AuthResult {
   valid: boolean;
-  email?: string;
-  userId?: number;
+  userId?: string;
   error?: string;
 }
 
 /**
  * Extract API key from the request's Authorization header.
- * Claude.ai sends it as: Authorization: Bearer <api_key>
+ * Claude.ai / Claude Code sends it as: Authorization: Bearer <api_key>
  */
 export function extractApiKey(request: Request): string | null {
   const authHeader = request.headers.get("authorization");
   if (!authHeader) return null;
 
-  // Support both "Bearer <key>" and raw "<key>"
   const key = authHeader.startsWith("Bearer ")
     ? authHeader.slice(7)
     : authHeader;
@@ -33,35 +31,44 @@ export function extractApiKey(request: Request): string | null {
 }
 
 /**
- * Validate an API key against the nodes API /v1/auth/profile endpoint.
- * This is the same validation the ML backend does.
+ * Validate an sk-live_ API key by calling a sciweave-web API endpoint.
+ * The v1/search endpoint uses authorizeApiRequest which validates
+ * against Supabase's api_keys table.
+ *
+ * We make a lightweight HEAD-style request to test the key.
  */
 export async function validateApiKey(apiKey: string): Promise<AuthResult> {
   try {
-    const res = await fetch(`${NODES_API_URL}/v1/auth/profile`, {
-      headers: { "api-key": apiKey },
+    // Call the v1/search endpoint with a minimal query to validate the key.
+    // The authorizeApiRequest middleware validates before any work is done.
+    const res = await fetch(`${WEB_API_URL}/api/v1/search`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query: "__auth_check__", limit: 1 }),
     });
 
-    if (!res.ok) {
+    if (res.status === 401) {
+      return { valid: false, error: "Invalid API key" };
+    }
+
+    if (res.status === 402) {
       return {
         valid: false,
-        error:
-          res.status === 401
-            ? "Invalid API key"
-            : `Auth check failed: ${res.status}`,
+        error: "Insufficient credits. Top up at https://sciweave.com/settings?tab=api-access",
       };
     }
 
-    const profile = await res.json();
-
-    if (!profile.userId) {
-      return { valid: false, error: "No user found for this API key" };
+    if (res.ok || res.status < 500) {
+      // Key is valid (even if the search returned no results)
+      return { valid: true };
     }
 
     return {
-      valid: true,
-      email: profile.email,
-      userId: profile.userId,
+      valid: false,
+      error: `Validation failed: ${res.status} ${res.statusText}`,
     };
   } catch (err) {
     return {
