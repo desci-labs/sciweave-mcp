@@ -39,7 +39,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   <meta property="og:type" content="website">
   <meta property="og:title" content="SciWeave MCP Server">
   <meta property="og:description" content="Search research papers and get AI-powered answers with citations — right inside Claude.">
-  <meta property="og:image" content="${BASE_URL}/api/og">
+  <meta property="og:image" content="${BASE_URL}/public/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:url" content="${BASE_URL}">
@@ -49,7 +49,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="SciWeave MCP Server">
   <meta name="twitter:description" content="Search research papers and get AI-powered answers with citations — right inside Claude.">
-  <meta name="twitter:image" content="${BASE_URL}/api/og">
+  <meta name="twitter:image" content="${BASE_URL}/public/og.png">
 
   <meta name="description" content="SciWeave MCP Server — Claude connector for AI-powered research paper search and answers with citations.">
 
