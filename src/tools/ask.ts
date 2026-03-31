@@ -70,7 +70,12 @@ export async function askResearchQuestion(
   const citationList = result.citations
     .map((c, i) => {
       const parts = [`[${i + 1}] ${c.title}`];
-      if (c.authors?.length) parts.push(`   Authors: ${c.authors.join(", ")}`);
+      if (c.authors) {
+        const authorStr = Array.isArray(c.authors)
+          ? c.authors.map((a: unknown) => (typeof a === "string" ? a : (a as Record<string, string>)?.name ?? String(a))).join(", ")
+          : String(c.authors);
+        if (authorStr) parts.push(`   Authors: ${authorStr}`);
+      }
       if (c.year) parts.push(`   Year: ${c.year}`);
       if (c.journal) parts.push(`   Journal: ${c.journal}`);
       if (c.doi) parts.push(`   DOI: ${c.doi}`);
