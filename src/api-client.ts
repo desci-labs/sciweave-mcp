@@ -186,7 +186,12 @@ async function consumeSSEStream(response: Response): Promise<AnswerResult> {
             const parsed = JSON.parse(data);
             switch (currentEvent) {
               case "content":
-                result.answer += parsed.content ?? parsed ?? "";
+                if (typeof parsed === "string") {
+                  result.answer += parsed;
+                } else if (parsed?.content && typeof parsed.content === "string") {
+                  result.answer += parsed.content;
+                }
+                // Skip non-string content events (e.g., metadata objects)
                 break;
               case "citations":
                 if (Array.isArray(parsed)) {
@@ -210,7 +215,7 @@ async function consumeSSEStream(response: Response): Promise<AnswerResult> {
                 break;
               default:
                 // For events without explicit type, check if it's a stream_event
-                if (parsed.content) {
+                if (parsed.content && typeof parsed.content === "string") {
                   result.answer += parsed.content;
                 }
                 if (parsed.citations) {
