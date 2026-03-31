@@ -64,7 +64,12 @@ export async function getCollectionPapers(
   const formatted = papers
     .map((p, i) => {
       const parts = [`${i + 1}. **${p.title || "Untitled"}**`];
-      if (p.authors?.length) parts.push(`   Authors: ${p.authors.join(", ")}`);
+      if (p.authors) {
+        const authorStr = Array.isArray(p.authors)
+          ? p.authors.map((a: unknown) => (typeof a === "string" ? a : (a as Record<string, string>)?.name ?? String(a))).join(", ")
+          : String(p.authors);
+        if (authorStr) parts.push(`   Authors: ${authorStr}`);
+      }
       if (p.year) parts.push(`   Year: ${p.year}`);
       if (p.journal) parts.push(`   Journal: ${p.journal}`);
       if (p.doi) parts.push(`   DOI: ${p.doi}`);
