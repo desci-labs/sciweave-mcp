@@ -179,14 +179,14 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       <span class="tool">get_collection_papers</span>
       <span class="tool">get_research_thread</span>
     </div>
-    <a class="cta" href="https://sciweave.com/login?redirect=/settings?tab=api-access">
+    <a class="cta" href="https://sciweave.com/signin?redirect=%2Fsettings%3Ftab%3Dapi-access">
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
       Get Your API Key
     </a>
     <p class="divider">Already have a key? Follow the steps below.</p>
     <div class="setup">
       <h2>Quick Setup</h2>
-      <div class="step"><span class="step-num">1.</span> <a href="https://sciweave.com/login?redirect=/settings?tab=api-access" style="color:#3b82f6;text-decoration:none">Log in</a> and copy your API key</div>
+      <div class="step"><span class="step-num">1.</span> <a href="https://sciweave.com/signin?redirect=%2Fsettings%3Ftab%3Dapi-access" style="color:#3b82f6;text-decoration:none">Log in</a> and copy your API key</div>
       <div class="step"><span class="step-num">2.</span> In Claude.ai → Settings → Connectors</div>
       <div class="step"><span class="step-num">3.</span> Add URL: <code>${BASE_URL}/mcp</code></div>
       <div class="step"><span class="step-num">4.</span> Paste your API key as the token</div>
