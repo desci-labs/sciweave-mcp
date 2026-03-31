@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const BASE_URL = "https://sciweave-mcp.vercel.app";
+const BASE_URL = "https://mcp.sciweave.com";
 
 const jsonPayload = {
   name: "SciWeave MCP Server",
