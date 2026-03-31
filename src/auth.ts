@@ -1,7 +1,7 @@
 /**
  * API Key Authentication
  *
- * Validates sk-live_ API keys by calling a sciweave-web API endpoint
+ * Validates sciweave_live_ API keys by calling a sciweave-web API endpoint
  * that checks the key against Supabase. This is the same validation
  * the public API (v1/search, v1/chat) uses.
  */
@@ -31,7 +31,7 @@ export function extractApiKey(request: Request): string | null {
 }
 
 /**
- * Validate an sk-live_ API key by calling a sciweave-web API endpoint.
+ * Validate an sciweave_live_ API key by calling a sciweave-web API endpoint.
  * The v1/search endpoint uses authorizeApiRequest which validates
  * against Supabase's api_keys table.
  *

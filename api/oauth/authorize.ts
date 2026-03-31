@@ -107,7 +107,7 @@ function showAuthForm(req: VercelRequest, res: VercelResponse) {
       <input type="hidden" name="code_challenge_method" value="${escapeHtml(code_challenge_method || "")}">
       <input type="hidden" name="client_id" value="${escapeHtml(client_id || "")}">
       <label for="api_key">API Key</label>
-      <input type="text" id="api_key" name="api_key" placeholder="sk-live_..." required autocomplete="off">
+      <input type="text" id="api_key" name="api_key" placeholder="sciweave_live_..." required autocomplete="off">
       <div class="error" id="error"></div>
       <button type="submit">Connect to Claude</button>
     </form>

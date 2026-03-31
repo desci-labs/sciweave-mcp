@@ -20,7 +20,7 @@ const ML_BACKEND_URL =
 const WEB_API_URL =
   process.env.SCIWEAVE_WEB_API_URL || "https://sciweave.com";
 
-/** Auth headers for sciweave-web API (sk-live_ keys via Bearer token) */
+/** Auth headers for sciweave-web API (sciweave_live_ keys via Bearer token) */
 function webAuthHeaders(apiKey: string): Record<string, string> {
   return {
     "Authorization": `Bearer ${apiKey}`,
@@ -120,9 +120,9 @@ export async function askWithCitations(
     body.filter = opts.filter;
   }
 
-  const res = await fetch(`${ML_BACKEND_URL}/api/answer-with-citations`, {
+  const res = await fetch(`${WEB_API_URL}/api/answer-with-citations`, {
     method: "POST",
-    headers: mlAuthHeaders(apiKey),
+    headers: webAuthHeaders(apiKey),
     body: JSON.stringify(body),
   });
 
