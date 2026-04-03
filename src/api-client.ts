@@ -12,6 +12,7 @@ import type {
   ThreadResult,
   Citation,
   FollowUpQuestion,
+  FindReferencesResult,
 } from "./types.js";
 
 /** Base URLs configured via environment variables */
@@ -134,6 +135,45 @@ export async function askWithCitations(
   }
 
   return consumeSSEStream(res);
+}
+
+// ---------------------------------------------------------------------------
+// Find References (fast citations-only, no LLM answer generation)
+// ---------------------------------------------------------------------------
+
+export async function findReferences(
+  apiKey: string,
+  opts: {
+    query: string;
+    top_k?: number;
+  }
+): Promise<FindReferencesResult> {
+  const body = {
+    query: opts.query,
+    top_k: opts.top_k ?? 5,
+    api_key: apiKey,
+    device_id: "mcp_connector",
+  };
+
+  const res = await fetch(`${ML_BACKEND_URL}/api/answer-citations-only`, {
+    method: "POST",
+    headers: mlAuthHeaders(apiKey),
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return {
+      citations: [],
+      summary_hint: "",
+      query_en: opts.query,
+      metrics: {},
+      search_id: "",
+      error: `Request failed: ${res.status} ${res.statusText} — ${text}`,
+    };
+  }
+
+  return res.json();
 }
 
 // ---------------------------------------------------------------------------

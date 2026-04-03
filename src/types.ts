@@ -58,6 +58,25 @@ export interface Paper {
   added_at?: string;
 }
 
+/** Result from the fast citations-only endpoint (no LLM answer generation) */
+export interface FindReferencesResult {
+  citations: MinimalCitation[];
+  summary_hint: string;
+  query_en: string;
+  metrics: Record<string, number>;
+  search_id: string;
+  error?: string;
+}
+
+export interface MinimalCitation {
+  title: string;
+  authors_short: string;
+  year?: number;
+  doi?: string;
+  url?: string;
+  snippet: string;
+}
+
 export interface ThreadMessage {
   id: string;
   query: string;
