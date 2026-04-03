@@ -21,6 +21,10 @@ import {
   getResearchThreadSchema,
   getResearchThread,
 } from "./tools/threads.js";
+import {
+  findReferencesSchema,
+  findReferencesTool,
+} from "./tools/references.js";
 
 export function createServer(apiKey: string): McpServer {
   const server = new McpServer({
@@ -71,6 +75,16 @@ export function createServer(apiKey: string): McpServer {
         apiKey,
         getResearchThreadSchema.parse(input)
       );
+    }
+  );
+
+  // -- Fast reference lookup (no LLM answer generation) --
+  server.tool(
+    "find_references",
+    "Fast reference lookup — returns relevant papers with titles, authors, years, DOIs, and abstract snippets. Much faster than ask_research_question because it skips AI answer generation. Use this when you just need to find papers on a topic, not a synthesized answer.",
+    findReferencesSchema.shape,
+    async (input) => {
+      return findReferencesTool(apiKey, findReferencesSchema.parse(input));
     }
   );
 
