@@ -80,6 +80,8 @@ export default async function handler(
   const server = createServer(apiKey);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined, // Stateless — no session persistence
+    enableJsonResponse: true, // Return single JSON response & end the connection
+    // (default SSE mode keeps the stream open, which hangs serverless clients)
   });
 
   await server.connect(transport);
