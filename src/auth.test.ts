@@ -69,11 +69,15 @@ describe("validateApiKey", () => {
 
   it("returns { valid: true } on 200", async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ valid: true, balance: 25 }), { status: 200 })
+      new Response(
+        JSON.stringify({ valid: true, userId: "alice@example.com", balance: 25 }),
+        { status: 200 }
+      )
     );
 
     const result = await validateApiKey("sciweave_live_good");
     expect(result.valid).toBe(true);
+    expect(result.userId).toBe("alice@example.com");
     expect(result.error).toBeUndefined();
   });
 
@@ -105,6 +109,38 @@ describe("validateApiKey", () => {
     expect(result.valid).toBe(false);
     expect(result.error).toMatch(/insufficient credits/i);
     expect(result.error).toMatch(/sciweave\.com/i);
+  });
+
+  it("fails closed when 200 body has valid:true but no userId", async () => {
+    // A malformed success payload (e.g. partial deploy, middleware
+    // rewrite) must not let an unidentified caller through the auth gate.
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ valid: true }), { status: 200 })
+    );
+
+    const result = await validateApiKey("sciweave_live_x");
+    expect(result.valid).toBe(false);
+  });
+
+  it("fails closed when 200 body has valid:true but empty userId", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ valid: true, userId: "   " }), { status: 200 })
+    );
+
+    const result = await validateApiKey("sciweave_live_x");
+    expect(result.valid).toBe(false);
+  });
+
+  it("fails closed when 200 body has valid:'true' (string, not boolean)", async () => {
+    // Truthy !== literal true. Strict check prevents type-coercion slip-ups.
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ valid: "true", userId: "a@b.com" }), {
+        status: 200,
+      })
+    );
+
+    const result = await validateApiKey("sciweave_live_x");
+    expect(result.valid).toBe(false);
   });
 
   it("does NOT leak raw backend error strings on 5xx", async () => {

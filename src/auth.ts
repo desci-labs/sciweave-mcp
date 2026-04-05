@@ -60,8 +60,19 @@ export async function validateApiKey(apiKey: string): Promise<AuthResult> {
       // Non-JSON response — fall through to status-based error handling.
     }
 
-    if (res.status === 200 && body.valid) {
-      return { valid: true, userId: body.userId };
+    // Fail closed on malformed 200s — require strict `valid === true`
+    // AND a non-empty string userId. A partial deploy, CDN rewrite, or
+    // mock middleware could otherwise let an unidentified caller
+    // through the auth gate.
+    if (res.status === 200) {
+      if (
+        body.valid === true &&
+        typeof body.userId === "string" &&
+        body.userId.trim().length > 0
+      ) {
+        return { valid: true, userId: body.userId };
+      }
+      return { valid: false, error: "Auth service returned malformed response" };
     }
 
     if (res.status === 401) {
