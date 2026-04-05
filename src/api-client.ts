@@ -38,6 +38,55 @@ function mlAuthHeaders(apiKey: string): Record<string, string> {
 }
 
 // ---------------------------------------------------------------------------
+// Usage Tracking — called at the start of every MCP tool wrapper so each
+// tool invocation lands in credit_transactions with endpoint label
+// `mcp:<tool>`. Unifies metering for tools that bypass sciweave-web.
+// ---------------------------------------------------------------------------
+
+export interface TrackUsageResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** track-usage should be fast (single DB call). Cap at 5s so a slow
+ *  sciweave-web can't stall an MCP tool invocation indefinitely. */
+const TRACK_TIMEOUT_MS = 5000;
+
+export async function trackUsage(
+  apiKey: string,
+  tool: string
+): Promise<TrackUsageResult> {
+  try {
+    const res = await fetch(`${WEB_API_URL}/api/v1/track-usage`, {
+      method: "POST",
+      headers: webAuthHeaders(apiKey),
+      body: JSON.stringify({ tool }),
+      signal: AbortSignal.timeout(TRACK_TIMEOUT_MS),
+    });
+
+    if (res.ok) {
+      return { ok: true };
+    }
+
+    let body: { error?: string } = {};
+    try {
+      body = await res.json();
+    } catch {
+      // non-JSON response
+    }
+    return {
+      ok: false,
+      error: body.error ?? `track-usage failed: ${res.status}`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `track-usage network error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Research Lists (proxied through sciweave-web Next.js API)
 // ---------------------------------------------------------------------------
 
