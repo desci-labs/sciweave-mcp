@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getThread } from "../api-client.js";
+import { getThread, trackUsage } from "../api-client.js";
 
 export const getResearchThreadSchema = z.object({
   thread_id: z
@@ -15,6 +15,16 @@ export async function getResearchThread(
   apiKey: string,
   input: GetResearchThreadInput
 ) {
+  const tracked = await trackUsage(apiKey, "get_research_thread");
+  if (!tracked.ok) {
+    return {
+      content: [
+        { type: "text" as const, text: `Error: ${tracked.error ?? "Usage tracking failed"}` },
+      ],
+      isError: true,
+    };
+  }
+
   const thread = await getThread(apiKey, input.thread_id);
 
   const messages: string[] = [];
