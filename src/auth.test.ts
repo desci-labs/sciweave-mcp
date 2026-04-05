@@ -43,6 +43,17 @@ describe("validateApiKey", () => {
     expect(url).not.toBe(SEARCH_URL);
   });
 
+  it("passes an AbortSignal timeout so the call can't hang forever", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ valid: true, balance: 10 }), { status: 200 })
+    );
+
+    await validateApiKey("sciweave_live_xyz");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it("sends the key as Bearer in the Authorization header", async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ valid: true, balance: 10 }), { status: 200 })

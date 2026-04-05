@@ -12,6 +12,10 @@
 const WEB_API_URL =
   process.env.SCIWEAVE_WEB_API_URL || "https://sciweave.com";
 
+/** Auth validation should be fast. 5s cap prevents the MCP request from
+ *  hanging indefinitely if sciweave-web is degraded. */
+const AUTH_TIMEOUT_MS = 5000;
+
 export interface AuthResult {
   valid: boolean;
   userId?: string;
@@ -45,6 +49,7 @@ export async function validateApiKey(apiKey: string): Promise<AuthResult> {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
+      signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
     });
 
     // Try to parse the response body — validate-key always returns JSON.
