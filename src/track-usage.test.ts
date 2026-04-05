@@ -42,6 +42,17 @@ describe("trackUsage", () => {
     expect(JSON.parse(init.body)).toEqual({ tool: "find_references" });
   });
 
+  it("passes an AbortSignal timeout so the call can't hang forever", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 })
+    );
+
+    await trackUsage("key", "find_references");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it("returns { ok: true } on 200", async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ ok: true, userId: "u@e.com" }), {

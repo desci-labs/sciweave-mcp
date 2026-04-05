@@ -48,6 +48,10 @@ export interface TrackUsageResult {
   error?: string;
 }
 
+/** track-usage should be fast (single DB call). Cap at 5s so a slow
+ *  sciweave-web can't stall an MCP tool invocation indefinitely. */
+const TRACK_TIMEOUT_MS = 5000;
+
 export async function trackUsage(
   apiKey: string,
   tool: string
@@ -57,6 +61,7 @@ export async function trackUsage(
       method: "POST",
       headers: webAuthHeaders(apiKey),
       body: JSON.stringify({ tool }),
+      signal: AbortSignal.timeout(TRACK_TIMEOUT_MS),
     });
 
     if (res.ok) {
