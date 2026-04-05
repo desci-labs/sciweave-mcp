@@ -107,6 +107,26 @@ describe("validateApiKey", () => {
     expect(result.error).toMatch(/sciweave\.com/i);
   });
 
+  it("does NOT leak raw backend error strings on 5xx", async () => {
+    // Backend returns an internal error message that could leak infra details.
+    // MCP clients should see a generic "Auth service unavailable" instead.
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          valid: false,
+          error: "Postgres connection pool exhausted: db-primary-1.internal:5432",
+        }),
+        { status: 500 }
+      )
+    );
+
+    const result = await validateApiKey("sciweave_live_anything");
+    expect(result.valid).toBe(false);
+    expect(result.error).not.toContain("Postgres");
+    expect(result.error).not.toContain("internal");
+    expect(result.error).toMatch(/auth service unavailable/i);
+  });
+
   it("returns { valid: false } on network failure", async () => {
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
 

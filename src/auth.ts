@@ -77,9 +77,15 @@ export async function validateApiKey(apiKey: string): Promise<AuthResult> {
       };
     }
 
+    // Unexpected status — do NOT forward body.error, which may contain
+    // internal/infra details (DB hostnames, stack traces, etc.) that
+    // MCP clients shouldn't see.
+    if (res.status >= 500) {
+      return { valid: false, error: "Auth service unavailable" };
+    }
     return {
       valid: false,
-      error: body.error ?? `Validation failed: ${res.status} ${res.statusText}`,
+      error: `Validation failed: ${res.status} ${res.statusText}`,
     };
   } catch (err) {
     return {
