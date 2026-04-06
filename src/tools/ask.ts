@@ -2,7 +2,7 @@ import { z } from "zod";
 import { askWithCitations } from "../api-client.js";
 
 export const askResearchQuestionSchema = z.object({
-  query: z
+  question: z
     .string()
     .describe(
       "The research question to answer. Be specific — e.g., 'What are the mechanisms of CRISPR-Cas9 off-target effects?'"
@@ -47,7 +47,7 @@ export async function askResearchQuestion(
   }
 
   const result = await askWithCitations(apiKey, {
-    query: input.query,
+    query: input.question,
     difficulty: input.difficulty,
     listIds: input.list_ids,
     includeLiterature: input.include_literature,
