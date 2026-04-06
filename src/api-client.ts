@@ -125,6 +125,7 @@ export async function askWithCitations(
     method: "POST",
     headers: webAuthHeaders(apiKey),
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(120_000), // 2 min cap for SSE streams
   });
 
   if (!res.ok) {
