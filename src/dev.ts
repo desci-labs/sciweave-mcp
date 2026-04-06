@@ -5,16 +5,33 @@
  *   SCIWEAVE_API_KEY=your_key pnpm dev
  *
  * Then test with MCP Inspector:
- *   npx @modelcontextprotocol/inspector http://localhost:3100/mcp
+ *   npx @modelcontextprotocol/inspector
+ *   Then in the Inspector UI, choose Streamable HTTP and enter:
+ *   http://localhost:3100/mcp
  */
 
 import { createServer as createHttpServer } from "node:http";
-import { createServer } from "./server.js";
+import process from "node:process";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { extractApiKey, validateApiKey } from "./auth.js";
+
+try {
+  process.loadEnvFile?.(".env");
+} catch {
+  // Local .env loading is best-effort for dev only.
+}
+
+const [{ createServer }, { validateApiKey }] = await Promise.all([
+  import("./server.js"),
+  import("./auth.js"),
+]);
 
 const PORT = parseInt(process.env.PORT || "3100", 10);
 const DEV_API_KEY = process.env.SCIWEAVE_API_KEY;
+const ML_BACKEND_URL =
+  process.env.SCIWEAVE_ML_BACKEND_URL || "https://nodes-api.desci.com";
+const WEB_API_URL =
+  process.env.SCIWEAVE_WEB_API_URL || "https://sciweave.com";
+const DEBUG_HTTP = process.env.SCIWEAVE_MCP_DEBUG_HTTP === "true";
 
 const httpServer = createHttpServer(async (req, res) => {
   // CORS
@@ -115,7 +132,9 @@ const httpServer = createHttpServer(async (req, res) => {
 
 httpServer.listen(PORT, () => {
   console.log(`SciWeave MCP server running at http://localhost:${PORT}/mcp`);
-  console.log(
-    `Test with: npx @modelcontextprotocol/inspector http://localhost:${PORT}/mcp`
-  );
+  console.log("Inspector: start with `npx @modelcontextprotocol/inspector`, then choose Streamable HTTP and enter the MCP URL.");
+  console.log(`[MCP] ML backend: ${ML_BACKEND_URL}`);
+  console.log(`[MCP] Web API: ${WEB_API_URL}`);
+  console.log(`[MCP] HTTP debug logging: ${DEBUG_HTTP ? "enabled" : "disabled"}`);
+  console.log(`[MCP] Dev API key loaded: ${DEV_API_KEY ? "yes" : "no"}`);
 });

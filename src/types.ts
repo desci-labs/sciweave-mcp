@@ -101,3 +101,48 @@ export interface ThreadResult {
   created_at: string;
   thread_messages?: ThreadMessage[];
 }
+
+export interface AuthorMatch {
+  id?: string;
+  display_name?: string;
+  orcid?: string;
+  works_count?: number;
+  cited_by_count?: number;
+  last_known_institution?: Record<string, unknown>;
+  score?: number;
+}
+
+export interface SearchAuthorsResult {
+  authors: AuthorMatch[];
+  total: number;
+}
+
+export interface AuthorWork {
+  work_id?: string;
+  doi?: string;
+  title: string;
+  publication_year?: number;
+  cited_by_count?: number;
+  abstract?: string;
+  pdf_url?: string;
+  journal?: string;
+  content_novelty_percentile?: number;
+  context_novelty_percentile?: number;
+}
+
+export interface WorksByAuthorResult {
+  author_id: string;
+  works: AuthorWork[];
+  total: number;
+}
+
+export interface NoveltyScoreResult {
+  doi?: string;
+  work_id?: string;
+  title?: string;
+  publication_year?: number;
+  content_novelty_percentile?: number;
+  context_novelty_percentile?: number;
+  content_novelty_last_updated?: string;
+  context_novelty_last_updated?: string;
+}

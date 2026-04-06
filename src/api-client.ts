@@ -13,6 +13,9 @@ import type {
   Citation,
   FollowUpQuestion,
   FindReferencesResult,
+  SearchAuthorsResult,
+  WorksByAuthorResult,
+  NoveltyScoreResult,
 } from "./types.js";
 
 /** Base URLs configured via environment variables */
@@ -20,6 +23,37 @@ const ML_BACKEND_URL =
   process.env.SCIWEAVE_ML_BACKEND_URL || "https://nodes-api.desci.com";
 const WEB_API_URL =
   process.env.SCIWEAVE_WEB_API_URL || "https://sciweave.com";
+const DEBUG_HTTP = process.env.SCIWEAVE_MCP_DEBUG_HTTP === "true";
+
+function summarizeBody(body?: BodyInit | null): string | undefined {
+  if (typeof body !== "string") return undefined;
+  return body.length > 400 ? `${body.slice(0, 400)}...` : body;
+}
+
+async function fetchWithDebug(
+  url: string,
+  init?: RequestInit,
+  label?: string
+): Promise<Response> {
+  const method = init?.method ?? "GET";
+  const prefix = label ? `[mcp:${label}]` : "[mcp:http]";
+
+  if (DEBUG_HTTP) {
+    console.log(`${prefix} -> ${method} ${url}`);
+    const bodySummary = summarizeBody(init?.body);
+    if (bodySummary) {
+      console.log(`${prefix} body ${bodySummary}`);
+    }
+  }
+
+  const response = await fetch(url, init);
+
+  if (DEBUG_HTTP) {
+    console.log(`${prefix} <- ${response.status} ${response.statusText}`);
+  }
+
+  return response;
+}
 
 /** Auth headers for sciweave-web API (sciweave_live_ keys via Bearer token) */
 function webAuthHeaders(apiKey: string): Record<string, string> {
@@ -44,9 +78,9 @@ function mlAuthHeaders(apiKey: string): Record<string, string> {
 export async function listCollections(
   apiKey: string
 ): Promise<ResearchList[]> {
-  const res = await fetch(`${WEB_API_URL}/api/lists`, {
+  const res = await fetchWithDebug(`${WEB_API_URL}/api/lists`, {
     headers: webAuthHeaders(apiKey),
-  });
+  }, "list_collections");
   if (!res.ok) {
     throw new Error(`Failed to list collections: ${res.status} ${res.statusText}`);
   }
@@ -58,9 +92,9 @@ export async function getCollectionPapers(
   apiKey: string,
   listId: string
 ): Promise<Paper[]> {
-  const res = await fetch(`${WEB_API_URL}/api/lists/${listId}/papers`, {
+  const res = await fetchWithDebug(`${WEB_API_URL}/api/lists/${listId}/papers`, {
     headers: webAuthHeaders(apiKey),
-  });
+  }, "get_collection_papers");
   if (!res.ok) {
     throw new Error(`Failed to get papers: ${res.status} ${res.statusText}`);
   }
@@ -76,9 +110,10 @@ export async function getThread(
   apiKey: string,
   threadId: string
 ): Promise<ThreadResult> {
-  const res = await fetch(
+  const res = await fetchWithDebug(
     `${ML_BACKEND_URL}/api/semantic-result/${threadId}`,
-    { headers: mlAuthHeaders(apiKey) }
+    { headers: mlAuthHeaders(apiKey) },
+    "get_research_thread"
   );
   if (!res.ok) {
     throw new Error(`Failed to get thread: ${res.status} ${res.statusText}`);
@@ -121,11 +156,11 @@ export async function askWithCitations(
     body.filter = opts.filter;
   }
 
-  const res = await fetch(`${WEB_API_URL}/api/answer-with-citations`, {
+  const res = await fetchWithDebug(`${WEB_API_URL}/api/answer-with-citations`, {
     method: "POST",
     headers: webAuthHeaders(apiKey),
     body: JSON.stringify(body),
-  });
+  }, "ask_research_question");
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -155,11 +190,11 @@ export async function findReferences(
     device_id: "mcp_connector",
   };
 
-  const res = await fetch(`${ML_BACKEND_URL}/api/answer-citations-only`, {
+  const res = await fetchWithDebug(`${ML_BACKEND_URL}/api/answer-citations-only`, {
     method: "POST",
     headers: mlAuthHeaders(apiKey),
     body: JSON.stringify(body),
-  });
+  }, "find_references");
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -173,6 +208,87 @@ export async function findReferences(
     };
   }
 
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// MCP Lookup Tools (ML backend JSON routes)
+// ---------------------------------------------------------------------------
+
+export async function searchAuthors(
+  apiKey: string,
+  opts: {
+    query?: string;
+    orcid?: string;
+    openalex_id?: string;
+    top_k?: number;
+  }
+): Promise<SearchAuthorsResult> {
+  const res = await fetchWithDebug(`${ML_BACKEND_URL}/api/mcp/search-authors`, {
+    method: "POST",
+    headers: mlAuthHeaders(apiKey),
+    body: JSON.stringify({
+      query: opts.query,
+      orcid: opts.orcid,
+      openalex_id: opts.openalex_id,
+      top_k: opts.top_k ?? 3,
+    }),
+  }, "search_authors");
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Author search failed: ${res.status} ${res.statusText} — ${text}`);
+  }
+  return res.json();
+}
+
+export async function getWorksByAuthor(
+  apiKey: string,
+  opts: {
+    author_id: string;
+    size?: number;
+    min_year?: number;
+    max_year?: number;
+    min_citations?: number;
+    must_have_abstract?: boolean;
+    has_oa?: boolean;
+    novelty_field?: "content_novelty_percentile" | "context_novelty_percentile";
+    min_novelty?: number;
+    max_novelty?: number;
+  }
+): Promise<WorksByAuthorResult> {
+  const res = await fetchWithDebug(`${ML_BACKEND_URL}/api/mcp/works-by-author`, {
+    method: "POST",
+    headers: mlAuthHeaders(apiKey),
+    body: JSON.stringify(opts),
+  }, "get_works_by_author");
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Works-by-author lookup failed: ${res.status} ${res.statusText} — ${text}`);
+  }
+  return res.json();
+}
+
+export async function lookupNoveltyScore(
+  apiKey: string,
+  opts: {
+    doi?: string;
+    work_id?: string;
+    include_work_metadata?: boolean;
+  }
+): Promise<NoveltyScoreResult> {
+  const res = await fetchWithDebug(`${ML_BACKEND_URL}/api/mcp/novelty-score`, {
+    method: "POST",
+    headers: mlAuthHeaders(apiKey),
+    body: JSON.stringify({
+      doi: opts.doi,
+      work_id: opts.work_id,
+      include_work_metadata: opts.include_work_metadata ?? true,
+    }),
+  }, "lookup_novelty_score");
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Novelty lookup failed: ${res.status} ${res.statusText} — ${text}`);
+  }
   return res.json();
 }
 
