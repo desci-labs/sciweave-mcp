@@ -161,6 +161,8 @@ export async function askWithCitations(
     headers: webAuthHeaders(apiKey),
     body: JSON.stringify(body),
   }, "ask_research_question");
+    signal: AbortSignal.timeout(120_000), // 2 min cap for SSE streams
+  });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");

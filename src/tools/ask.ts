@@ -4,8 +4,15 @@ import { askWithCitations } from "../api-client.js";
 export const askResearchQuestionSchema = z.object({
   query: z
     .string()
+    .optional()
     .describe(
       "The research question to answer. Be specific — e.g., 'What are the mechanisms of CRISPR-Cas9 off-target effects?'"
+    ),
+  question: z
+    .string()
+    .optional()
+    .describe(
+      "Alias for query — either works."
     ),
   difficulty: z
     .enum(["simple", "intermediate", "expert"])
@@ -35,6 +42,14 @@ export async function askResearchQuestion(
   apiKey: string,
   input: AskResearchQuestionInput
 ) {
+  const queryText = input.query || input.question;
+  if (!queryText) {
+    return {
+      content: [{ type: "text" as const, text: "Error: provide either `query` or `question`" }],
+      isError: true,
+    };
+  }
+
   const filter: Record<string, unknown> = {};
 
   if (input.min_year || input.max_year) {
@@ -47,7 +62,7 @@ export async function askResearchQuestion(
   }
 
   const result = await askWithCitations(apiKey, {
-    query: input.query,
+    query: queryText,
     difficulty: input.difficulty,
     listIds: input.list_ids,
     includeLiterature: input.include_literature,

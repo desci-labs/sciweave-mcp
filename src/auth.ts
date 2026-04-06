@@ -1,13 +1,20 @@
 /**
  * API Key Authentication
  *
- * Validates sciweave_live_ API keys by calling a sciweave-web API endpoint
- * that checks the key against Supabase. This is the same validation
- * the public API (v1/search, v1/chat) uses.
+ * Validates sciweave_live_ API keys by calling the dedicated
+ * /api/v1/validate-key endpoint — a no-deduct validation path.
+ *
+ * Previously this hit /api/v1/search with a dummy query, which went
+ * through authorizeApiRequest → deductCredit, burning a credit on every
+ * single MCP tool call just for auth.
  */
 
 const WEB_API_URL =
   process.env.SCIWEAVE_WEB_API_URL || "https://sciweave.com";
+
+/** Auth validation should be fast. 5s cap prevents the MCP request from
+ *  hanging indefinitely if sciweave-web is degraded. */
+const AUTH_TIMEOUT_MS = 5000;
 
 export interface AuthResult {
   valid: boolean;
@@ -31,41 +38,62 @@ export function extractApiKey(request: Request): string | null {
 }
 
 /**
- * Validate an sciweave_live_ API key by calling a sciweave-web API endpoint.
- * The v1/search endpoint uses authorizeApiRequest which validates
- * against Supabase's api_keys table.
- *
- * We make a lightweight HEAD-style request to test the key.
+ * Validate an sciweave_live_ API key against sciweave-web's Supabase.
+ * Does NOT deduct a credit.
  */
 export async function validateApiKey(apiKey: string): Promise<AuthResult> {
   try {
-    // Call the v1/search endpoint with a minimal query to validate the key.
-    // The authorizeApiRequest middleware validates before any work is done.
-    const res = await fetch(`${WEB_API_URL}/api/v1/search`, {
+    const res = await fetch(`${WEB_API_URL}/api/v1/validate-key`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ query: "__auth_check__", limit: 1 }),
+      signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
     });
 
+    // Try to parse the response body — validate-key always returns JSON.
+    let body: { valid?: boolean; userId?: string; error?: string } = {};
+    try {
+      body = await res.json();
+    } catch {
+      // Non-JSON response — fall through to status-based error handling.
+    }
+
+    // Fail closed on malformed 200s — require strict `valid === true`
+    // AND a non-empty string userId. A partial deploy, CDN rewrite, or
+    // mock middleware could otherwise let an unidentified caller
+    // through the auth gate.
+    if (res.status === 200) {
+      if (
+        body.valid === true &&
+        typeof body.userId === "string" &&
+        body.userId.trim().length > 0
+      ) {
+        return { valid: true, userId: body.userId };
+      }
+      return { valid: false, error: "Auth service returned malformed response" };
+    }
+
     if (res.status === 401) {
-      return { valid: false, error: "Invalid API key" };
+      return { valid: false, error: body.error ?? "Invalid API key" };
     }
 
     if (res.status === 402) {
       return {
         valid: false,
-        error: "Insufficient credits. Top up at https://sciweave.com/settings?tab=api-access",
+        error:
+          body.error ??
+          "Insufficient credits. Top up at https://sciweave.com/settings?tab=api-access",
       };
     }
 
-    if (res.ok || res.status < 500) {
-      // Key is valid (even if the search returned no results)
-      return { valid: true };
+    // Unexpected status — do NOT forward body.error, which may contain
+    // internal/infra details (DB hostnames, stack traces, etc.) that
+    // MCP clients shouldn't see.
+    if (res.status >= 500) {
+      return { valid: false, error: "Auth service unavailable" };
     }
-
     return {
       valid: false,
       error: `Validation failed: ${res.status} ${res.statusText}`,
