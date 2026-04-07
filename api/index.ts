@@ -19,6 +19,11 @@ const jsonPayload = {
     "list_collections",
     "get_collection_papers",
     "get_research_thread",
+    "find_references",
+    "search_authors",
+    "get_works_by_author",
+    "lookup_novelty_score",
+    "generate_literature_review",
   ],
 };
 
@@ -178,6 +183,11 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       <span class="tool">list_collections</span>
       <span class="tool">get_collection_papers</span>
       <span class="tool">get_research_thread</span>
+      <span class="tool">find_references</span>
+      <span class="tool">search_authors</span>
+      <span class="tool">get_works_by_author</span>
+      <span class="tool">lookup_novelty_score</span>
+      <span class="tool">generate_literature_review</span>
     </div>
     <a class="cta" href="https://sciweave.com/signin?redirect=%2Fsettings%3Ftab%3Dapi-access">
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>

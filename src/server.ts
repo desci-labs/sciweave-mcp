@@ -25,6 +25,24 @@ import {
   findReferencesSchema,
   findReferencesTool,
 } from "./tools/references.js";
+import {
+  searchAuthorsInputSchema,
+  searchAuthorsSchema,
+  searchAuthorsTool,
+  getWorksByAuthorSchema,
+  getWorksByAuthorTool,
+} from "./tools/authors.js";
+import {
+  lookupNoveltyScoreInputSchema,
+  lookupNoveltyScoreSchema,
+  lookupNoveltyScoreTool,
+} from "./tools/novelty.js";
+import {
+  generateLiteratureReviewInputSchema,
+  generateLiteratureReviewSchema,
+  generateLiteratureReviewTool,
+  normalizeGenerateLiteratureReviewInput,
+} from "./tools/reviews.js";
 
 export function createServer(apiKey: string): McpServer {
   const server = new McpServer({
@@ -85,6 +103,57 @@ export function createServer(apiKey: string): McpServer {
     findReferencesSchema.shape,
     async (input) => {
       return findReferencesTool(apiKey, findReferencesSchema.parse(input));
+    }
+  );
+
+  server.registerTool(
+    "search_authors",
+    {
+      description:
+        "Resolve an author by name, ORCID, or OpenAlex ID. Returns matching author IDs, citation counts, and institution metadata for downstream author-specific lookups.",
+      inputSchema: searchAuthorsInputSchema,
+    },
+    async (input) => {
+      return searchAuthorsTool(apiKey, searchAuthorsSchema.parse(input));
+    }
+  );
+
+  server.registerTool(
+    "get_works_by_author",
+    {
+      description:
+        "Retrieve works by a specific OpenAlex author ID, with optional filters for year, citation count, open access, and novelty.",
+      inputSchema: getWorksByAuthorSchema,
+    },
+    async (input) => {
+      return getWorksByAuthorTool(apiKey, getWorksByAuthorSchema.parse(input));
+    }
+  );
+
+  server.registerTool(
+    "lookup_novelty_score",
+    {
+      description:
+        "Look up novelty metrics for a paper by DOI or OpenAlex work ID. Returns content and context novelty percentiles when available.",
+      inputSchema: lookupNoveltyScoreInputSchema,
+    },
+    async (input) => {
+      return lookupNoveltyScoreTool(apiKey, lookupNoveltyScoreSchema.parse(input));
+    }
+  );
+
+  server.registerTool(
+    "generate_literature_review",
+    {
+      description:
+        "Generate a literature review on a topic using SciWeave's answer pipeline, with citations and optional collection scoping.",
+      inputSchema: generateLiteratureReviewInputSchema,
+    },
+    async (input) => {
+      return generateLiteratureReviewTool(
+        apiKey,
+        normalizeGenerateLiteratureReviewInput(input)
+      );
     }
   );
 
