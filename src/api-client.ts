@@ -24,10 +24,51 @@ const ML_BACKEND_URL =
 const WEB_API_URL =
   process.env.SCIWEAVE_WEB_API_URL || "https://sciweave.com";
 const DEBUG_HTTP = process.env.SCIWEAVE_MCP_DEBUG_HTTP === "true";
+const SENSITIVE_FIELD_NAMES = new Set([
+  "api_key",
+  "password",
+  "token",
+  "authorization",
+  "secret",
+  "access_token",
+]);
+
+function truncateForLog(value: string): string {
+  return value.length > 400 ? `${value.slice(0, 400)}...` : value;
+}
+
+function redactSensitiveFields(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(redactSensitiveFields);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        SENSITIVE_FIELD_NAMES.has(key.toLowerCase())
+          ? "[REDACTED]"
+          : redactSensitiveFields(nestedValue),
+      ])
+    );
+  }
+
+  return value;
+}
 
 function summarizeBody(body?: BodyInit | null): string | undefined {
   if (typeof body !== "string") return undefined;
-  return body.length > 400 ? `${body.slice(0, 400)}...` : body;
+
+  try {
+    return truncateForLog(JSON.stringify(redactSensitiveFields(JSON.parse(body))));
+  } catch {
+    return truncateForLog(
+      body.replace(
+        /((?:api_key|password|token|authorization|secret|access_token)["']?\s*[:=]\s*["']?)([^"',\s}]+)/gi,
+        "$1[REDACTED]"
+      )
+    );
+  }
 }
 
 async function fetchWithDebug(
@@ -160,9 +201,8 @@ export async function askWithCitations(
     method: "POST",
     headers: webAuthHeaders(apiKey),
     body: JSON.stringify(body),
-  }, "ask_research_question");
     signal: AbortSignal.timeout(120_000), // 2 min cap for SSE streams
-  });
+  }, "ask_research_question");
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
