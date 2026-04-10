@@ -41,6 +41,7 @@ export async function listCollections(
 ): Promise<ResearchList[]> {
   const res = await fetch(`${WEB_API_URL}/api/lists`, {
     headers: webAuthHeaders(apiKey),
+    signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) {
     throw new Error(`Failed to list collections: ${res.status} ${res.statusText}`);
@@ -53,9 +54,13 @@ export async function getCollectionPapers(
   apiKey: string,
   listId: string
 ): Promise<Paper[]> {
-  const res = await fetch(`${WEB_API_URL}/api/lists/${listId}/papers`, {
-    headers: webAuthHeaders(apiKey),
-  });
+  const res = await fetch(
+    `${WEB_API_URL}/api/lists/${encodeURIComponent(listId)}/papers`,
+    {
+      headers: webAuthHeaders(apiKey),
+      signal: AbortSignal.timeout(30_000),
+    }
+  );
   if (!res.ok) {
     throw new Error(`Failed to get papers: ${res.status} ${res.statusText}`);
   }
@@ -73,7 +78,10 @@ export async function getThread(
 ): Promise<ThreadResult> {
   const res = await fetch(
     `${WEB_API_URL}/api/semantic-result/${encodeURIComponent(threadId)}`,
-    { headers: webAuthHeaders(apiKey) }
+    {
+      headers: webAuthHeaders(apiKey),
+      signal: AbortSignal.timeout(30_000),
+    }
   );
   if (!res.ok) {
     throw new Error(`Failed to get thread: ${res.status} ${res.statusText}`);
@@ -156,6 +164,7 @@ export async function findReferences(
     method: "POST",
     headers: webAuthHeaders(apiKey),
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!res.ok) {
