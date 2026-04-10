@@ -15,9 +15,12 @@ import type {
   FindReferencesResult,
 } from "./types.js";
 
-/** Base URLs configured via environment variables */
-const ML_BACKEND_URL =
-  process.env.SCIWEAVE_ML_BACKEND_URL || "https://nodes-api.desci.com";
+/**
+ * Base URL for the sciweave-web API. This is the *only* backend the MCP talks to —
+ * sciweave-web proxies through to ml-sciweave-backend internally with server-side
+ * credentials. The MCP must not call ml-sciweave-backend directly because the ML
+ * backend doesn't recognize `sciweave_live_` API keys (only sciweave-web does).
+ */
 const WEB_API_URL =
   process.env.SCIWEAVE_WEB_API_URL || "https://sciweave.com";
 
@@ -25,14 +28,6 @@ const WEB_API_URL =
 function webAuthHeaders(apiKey: string): Record<string, string> {
   return {
     "Authorization": `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-  };
-}
-
-/** Auth headers for ML backend (api-key header) */
-function mlAuthHeaders(apiKey: string): Record<string, string> {
-  return {
-    "api-key": apiKey,
     "Content-Type": "application/json",
   };
 }
@@ -69,7 +64,7 @@ export async function getCollectionPapers(
 }
 
 // ---------------------------------------------------------------------------
-// Research Thread History (proxied through ML backend)
+// Research Thread History (proxied through sciweave-web → ml-backend)
 // ---------------------------------------------------------------------------
 
 export async function getThread(
@@ -77,8 +72,8 @@ export async function getThread(
   threadId: string
 ): Promise<ThreadResult> {
   const res = await fetch(
-    `${ML_BACKEND_URL}/api/semantic-result/${threadId}`,
-    { headers: mlAuthHeaders(apiKey) }
+    `${WEB_API_URL}/api/semantic-result/${encodeURIComponent(threadId)}`,
+    { headers: webAuthHeaders(apiKey) }
   );
   if (!res.ok) {
     throw new Error(`Failed to get thread: ${res.status} ${res.statusText}`);
@@ -149,16 +144,17 @@ export async function findReferences(
     top_k?: number;
   }
 ): Promise<FindReferencesResult> {
+  // Routed through sciweave-web; the proxy adds the api_key and forwards to
+  // ml-sciweave-backend with server-side credentials.
   const body = {
     query: opts.query,
     top_k: opts.top_k ?? 5,
-    api_key: apiKey,
     device_id: "mcp_connector",
   };
 
-  const res = await fetch(`${ML_BACKEND_URL}/api/answer-citations-only`, {
+  const res = await fetch(`${WEB_API_URL}/api/answer-citations-only`, {
     method: "POST",
-    headers: mlAuthHeaders(apiKey),
+    headers: webAuthHeaders(apiKey),
     body: JSON.stringify(body),
   });
 
