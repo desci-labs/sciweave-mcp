@@ -14,7 +14,7 @@ import { validateApiKey } from "../src/auth.js";
 
 function getResourceMetadataUrl(req: VercelRequest): string {
   const proto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers.host || "sciweave-mcp.vercel.app";
+  const host = req.headers.host || "mcp.sciweave.com";
   return `${proto}://${host}/.well-known/oauth-protected-resource`;
 }
 

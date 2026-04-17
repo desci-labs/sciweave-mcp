@@ -6,6 +6,7 @@
  */
 
 import type {
+  AccountStatus,
   AnswerResult,
   ResearchList,
   Paper,
@@ -32,6 +33,69 @@ function webAuthHeaders(apiKey: string): Record<string, string> {
   };
 }
 
+const PRICING_URL = "https://sciweave.com/pricing";
+const TOP_UP_URL = "https://sciweave.com/settings?tab=api-access";
+
+/**
+ * Error thrown when API returns 402 — insufficient credits.
+ * Tools catch this to return a friendly upgrade message instead of a raw error.
+ */
+export class InsufficientCreditsError extends Error {
+  constructor(balance: number = 0) {
+    super(
+      `You're out of SciWeave credits (balance: ${balance}). ` +
+      `Purchase more at ${TOP_UP_URL} — view pricing at ${PRICING_URL}`
+    );
+    this.name = "InsufficientCreditsError";
+  }
+}
+
+/**
+ * Check a fetch response for 402 and throw InsufficientCreditsError.
+ * Call this before other status checks in API functions.
+ */
+function check402(res: Response): void {
+  if (res.status === 402) {
+    throw new InsufficientCreditsError();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Account Status
+// ---------------------------------------------------------------------------
+
+export async function getAccountStatus(
+  apiKey: string
+): Promise<AccountStatus> {
+  try {
+    const res = await fetch(`${WEB_API_URL}/api/v1/validate-key`, {
+      method: "POST",
+      headers: webAuthHeaders(apiKey),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (res.status === 401) {
+      return { balance: 0, error: "Invalid API key.", pricingUrl: PRICING_URL, topUpUrl: TOP_UP_URL };
+    }
+
+    const body = await res.json().catch(() => ({}));
+
+    return {
+      balance: body.balance ?? 0,
+      userId: body.userId,
+      pricingUrl: PRICING_URL,
+      topUpUrl: TOP_UP_URL,
+    };
+  } catch (err) {
+    return {
+      balance: 0,
+      error: `Could not fetch account status: ${err instanceof Error ? err.message : String(err)}`,
+      pricingUrl: PRICING_URL,
+      topUpUrl: TOP_UP_URL,
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Research Lists (proxied through sciweave-web Next.js API)
 // ---------------------------------------------------------------------------
@@ -43,6 +107,7 @@ export async function listCollections(
     headers: webAuthHeaders(apiKey),
     signal: AbortSignal.timeout(30_000),
   });
+  check402(res);
   if (!res.ok) {
     throw new Error(`Failed to list collections: ${res.status} ${res.statusText}`);
   }
@@ -61,6 +126,7 @@ export async function getCollectionPapers(
       signal: AbortSignal.timeout(30_000),
     }
   );
+  check402(res);
   if (!res.ok) {
     throw new Error(`Failed to get papers: ${res.status} ${res.statusText}`);
   }
@@ -83,6 +149,7 @@ export async function getThread(
       signal: AbortSignal.timeout(30_000),
     }
   );
+  check402(res);
   if (!res.ok) {
     throw new Error(`Failed to get thread: ${res.status} ${res.statusText}`);
   }
@@ -131,6 +198,7 @@ export async function askWithCitations(
     signal: AbortSignal.timeout(120_000), // 2 min cap for SSE streams
   });
 
+  check402(res);
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(
@@ -167,6 +235,7 @@ export async function findReferences(
     signal: AbortSignal.timeout(30_000),
   });
 
+  check402(res);
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     return {

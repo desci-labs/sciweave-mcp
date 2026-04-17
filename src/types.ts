@@ -1,5 +1,13 @@
 /** Types shared across the MCP server — mirrors SciWeave API contracts */
 
+export interface AccountStatus {
+  balance: number;
+  userId?: string;
+  pricingUrl: string;
+  topUpUrl: string;
+  error?: string;
+}
+
 export interface Citation {
   id: string;
   work_id?: string;

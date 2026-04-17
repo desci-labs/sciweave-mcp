@@ -66,7 +66,7 @@ export function generateClientId(): string {
  */
 export function getBaseUrl(req: { headers: Record<string, string | string[] | undefined> }): string {
   const proto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers.host || "sciweave-mcp.vercel.app";
+  const host = req.headers.host || "mcp.sciweave.com";
   const p = Array.isArray(proto) ? proto[0] : proto;
   const h = Array.isArray(host) ? host[0] : host;
   return `${p}://${h}`;
