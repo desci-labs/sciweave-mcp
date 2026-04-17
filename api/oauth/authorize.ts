@@ -8,6 +8,37 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { encodeAuthCode } from "../../src/oauth.js";
 import { validateApiKey } from "../../src/auth.js";
 
+/**
+ * Allowed redirect URI patterns. Claude clients use these callbacks:
+ * - Claude Code: localhost:6274
+ * - Claude.ai / Claude Desktop: claude.ai and claude.com
+ *
+ * Additional origins can be added via EXTRA_REDIRECT_ORIGINS env var
+ * (comma-separated list of origins, e.g. "https://staging.example.com").
+ */
+const ALLOWED_REDIRECT_ORIGINS = [
+  "http://localhost:6274",
+  "https://claude.ai",
+  "https://claude.com",
+];
+
+function isRedirectUriAllowed(uri: string): boolean {
+  try {
+    const url = new URL(uri);
+    const origin = url.origin;
+
+    if (ALLOWED_REDIRECT_ORIGINS.includes(origin)) return true;
+
+    // Support additional origins from env (for staging/testing)
+    const extra = process.env.EXTRA_REDIRECT_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
+    if (extra.includes(origin)) return true;
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
     return showAuthForm(req, res);
@@ -122,6 +153,14 @@ async function handleAuthorize(req: VercelRequest, res: VercelResponse) {
 
   if (!api_key || !redirect_uri) {
     res.status(400).json({ error: "invalid_request", error_description: "Missing api_key or redirect_uri" });
+    return;
+  }
+
+  if (!isRedirectUriAllowed(redirect_uri)) {
+    res.status(400).json({
+      error: "invalid_request",
+      error_description: "Redirect URI not allowed. Only Claude client callbacks are permitted.",
+    });
     return;
   }
 
