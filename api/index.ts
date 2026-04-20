@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import mcpHandler from "./mcp.js";
 
 const BASE_URL = "https://mcp.sciweave.com";
 
@@ -22,7 +23,17 @@ const jsonPayload = {
   ],
 };
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Users sometimes configure their MCP client with the bare host
+  // (https://mcp.sciweave.com) instead of the /mcp path — and before this
+  // change that produced a confusing failure: POST / returned the landing
+  // page's manifest JSON, which MCP clients can't parse as JSON-RPC.
+  // Delegate any non-GET request to the MCP handler so both URL shapes
+  // just work. GET/HEAD continue to serve the human-facing landing page.
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    return mcpHandler(req, res);
+  }
+
   const accept = (req.headers.accept || "").toLowerCase();
 
   // Serve HTML with OG metadata for browsers / link previews
