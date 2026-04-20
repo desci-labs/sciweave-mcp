@@ -24,17 +24,30 @@ const jsonPayload = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const accept = (req.headers.accept || "").toLowerCase();
+
   // Users sometimes configure their MCP client with the bare host
-  // (https://mcp.sciweave.com) instead of the /mcp path — and before this
-  // change that produced a confusing failure: POST / returned the landing
-  // page's manifest JSON, which MCP clients can't parse as JSON-RPC.
-  // Delegate any non-GET request to the MCP handler so both URL shapes
-  // just work. GET/HEAD continue to serve the human-facing landing page.
-  if (req.method !== "GET" && req.method !== "HEAD") {
+  // (https://mcp.sciweave.com) instead of the /mcp path. Before this,
+  // POST / returned the landing page's manifest JSON (200 OK) and MCP
+  // clients silently failed to parse it as JSON-RPC.
+  //
+  // Delegate to the MCP handler when the request looks like MCP:
+  //  - any non-GET/HEAD method (POST for JSON-RPC, DELETE for session
+  //    termination, OPTIONS for CORS preflight), OR
+  //  - a GET asking for text/event-stream (MCP SSE channel — our server
+  //    runs in JSON-only mode so this won't actually stream, but if a
+  //    client attempts it we still want it handled by MCP, not the
+  //    landing page).
+  //
+  // Browsers and link previewers send Accept: text/html and hit the
+  // landing page as before. Programmatic manifest lookups via
+  // `Accept: application/json` keep working too.
+  const isMcpMethod = req.method !== "GET" && req.method !== "HEAD";
+  const isSseGet =
+    req.method === "GET" && accept.includes("text/event-stream");
+  if (isMcpMethod || isSseGet) {
     return mcpHandler(req, res);
   }
-
-  const accept = (req.headers.accept || "").toLowerCase();
 
   // Serve HTML with OG metadata for browsers / link previews
   if (accept.includes("text/html")) {
