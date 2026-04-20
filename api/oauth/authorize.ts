@@ -7,37 +7,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { encodeAuthCode } from "../../src/oauth.js";
 import { validateApiKey } from "../../src/auth.js";
-
-/**
- * Allowed redirect URI patterns. Claude clients use these callbacks:
- * - Claude Code: localhost:6274
- * - Claude.ai / Claude Desktop: claude.ai and claude.com
- *
- * Additional origins can be added via EXTRA_REDIRECT_ORIGINS env var
- * (comma-separated list of origins, e.g. "https://staging.example.com").
- */
-const ALLOWED_REDIRECT_ORIGINS = [
-  "http://localhost:6274",
-  "https://claude.ai",
-  "https://claude.com",
-];
-
-function isRedirectUriAllowed(uri: string): boolean {
-  try {
-    const url = new URL(uri);
-    const origin = url.origin;
-
-    if (ALLOWED_REDIRECT_ORIGINS.includes(origin)) return true;
-
-    // Support additional origins from env (for staging/testing)
-    const extra = process.env.EXTRA_REDIRECT_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
-    if (extra.includes(origin)) return true;
-
-    return false;
-  } catch {
-    return false;
-  }
-}
+import { isRedirectUriAllowed } from "../../src/redirect-uri.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
@@ -52,6 +22,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 function showAuthForm(req: VercelRequest, res: VercelResponse) {
   const { redirect_uri, state, code_challenge, code_challenge_method, client_id } =
     req.query as Record<string, string>;
+
+  // Guard: a user who lands here without a valid redirect_uri (direct
+  // navigation, stale bookmark, truncated link, misconfigured client)
+  // must NOT be asked for their API key — the form would submit to a
+  // dead redirect. Show a recovery page instead.
+  if (!redirect_uri || !isRedirectUriAllowed(redirect_uri)) {
+    renderErrorPage(
+      res,
+      400,
+      "Open this from your MCP client",
+      `This page should be launched by your MCP client (Claude Code, Claude.ai, Cursor, etc.), not visited directly. See the <a href="https://sciweave.com/web/mcp">SciWeave MCP install guide</a> for per-client setup.`,
+    );
+    return;
+  }
 
   res.setHeader("Content-Type", "text/html");
   res.send(`<!DOCTYPE html>
@@ -151,32 +135,46 @@ function showAuthForm(req: VercelRequest, res: VercelResponse) {
 async function handleAuthorize(req: VercelRequest, res: VercelResponse) {
   const { api_key, redirect_uri, state } = req.body || {};
 
-  if (!api_key || !redirect_uri) {
-    res.status(400).json({ error: "invalid_request", error_description: "Missing api_key or redirect_uri" });
+  // Humans submit this form, so 400s are HTML pages, not raw JSON.
+  if (!redirect_uri) {
+    renderErrorPage(
+      res,
+      400,
+      "Missing redirect URL",
+      `This page can't submit without a redirect URL — it was probably opened directly instead of being launched by your MCP client. See the <a href="https://sciweave.com/web/mcp">SciWeave MCP install guide</a>.`,
+    );
     return;
   }
 
   if (!isRedirectUriAllowed(redirect_uri)) {
-    res.status(400).json({
-      error: "invalid_request",
-      error_description: "Redirect URI not allowed. Only Claude client callbacks are permitted.",
-    });
+    renderErrorPage(
+      res,
+      400,
+      "Redirect URL not allowed",
+      `Only Claude client callbacks and loopback addresses (localhost, 127.0.0.1) are permitted. If you're developing a new client, set <code>EXTRA_REDIRECT_ORIGINS</code> on the MCP server.`,
+    );
+    return;
+  }
+
+  if (!api_key) {
+    renderErrorPage(
+      res,
+      400,
+      "Missing API key",
+      `Enter your SciWeave API key and try again. Get one at <a href="https://sciweave.com/settings?tab=api-access">sciweave.com/settings</a>.`,
+    );
     return;
   }
 
   // Validate the API key against the real SciWeave backend
   const auth = await validateApiKey(api_key);
   if (!auth.valid) {
-    // Show the form again with error
-    res.setHeader("Content-Type", "text/html");
-    res.send(`<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Error</title>
-<style>body{font-family:sans-serif;background:#0a0a0a;color:#e5e5e5;display:flex;align-items:center;justify-content:center;height:100vh;}
-.card{background:#171717;border:1px solid #262626;border-radius:12px;padding:32px;max-width:420px;}
-h1{font-size:18px;color:#ef4444;margin-bottom:12px;}p{font-size:14px;color:#a3a3a3;}
-a{color:#3b82f6;text-decoration:none;}</style></head>
-<body><div class="card"><h1>Invalid API Key</h1><p>${escapeHtml(auth.error || "The API key could not be verified.")}</p>
-<p style="margin-top:16px"><a href="javascript:history.back()">Try again</a></p></div></body></html>`);
+    renderErrorPage(
+      res,
+      400,
+      "Invalid API Key",
+      `${escapeHtml(auth.error || "The API key could not be verified.")} <a href="javascript:history.back()">Try again</a>.`,
+    );
     return;
   }
 
@@ -198,4 +196,37 @@ function escapeHtml(str: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/**
+ * Shared error page renderer. Used for any 4xx from the authorize endpoint
+ * so users see a readable explanation instead of a raw JSON error body
+ * (the authorize flow always comes from a browser, not a machine client).
+ */
+function renderErrorPage(
+  res: VercelResponse,
+  status: number,
+  title: string,
+  bodyHtml: string,
+): void {
+  res.status(status);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(title)} — SciWeave</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0a0a0a; color: #e5e5e5; display: flex; align-items: center;
+    justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+  .card { background: #171717; border: 1px solid #262626; border-radius: 12px;
+    padding: 32px; max-width: 480px; width: 100%; }
+  h1 { font-size: 18px; color: #ef4444; margin: 0 0 12px; }
+  p { font-size: 14px; color: #a3a3a3; line-height: 1.6; margin: 0; }
+  a { color: #3b82f6; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { background: #262626; padding: 2px 6px; border-radius: 4px;
+    font-family: ui-monospace, monospace; font-size: 12px; }
+</style></head>
+<body><div class="card"><h1>${escapeHtml(title)}</h1><p>${bodyHtml}</p></div></body></html>`);
 }
