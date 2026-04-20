@@ -37,6 +37,29 @@ function showAuthForm(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  // PKCE is mandatory per MCP spec + RFC 7636. A missing challenge means
+  // the client didn't follow OAuth 2.1 correctly — fail before asking the
+  // user for their API key. S256 is the only method we support.
+  if (!code_challenge) {
+    renderErrorPage(
+      res,
+      400,
+      "Missing PKCE challenge",
+      `Your MCP client didn't send a <code>code_challenge</code>. PKCE is required for all OAuth flows to this server. Update your client or contact its author.`,
+    );
+    return;
+  }
+
+  if (code_challenge_method && code_challenge_method !== "S256") {
+    renderErrorPage(
+      res,
+      400,
+      "Unsupported PKCE method",
+      `Only <code>S256</code> is supported. Your client sent <code>${escapeHtml(code_challenge_method)}</code>.`,
+    );
+    return;
+  }
+
   res.setHeader("Content-Type", "text/html");
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -133,7 +156,13 @@ function showAuthForm(req: VercelRequest, res: VercelResponse) {
 }
 
 async function handleAuthorize(req: VercelRequest, res: VercelResponse) {
-  const { api_key, redirect_uri, state } = req.body || {};
+  const {
+    api_key,
+    redirect_uri,
+    state,
+    code_challenge,
+    code_challenge_method,
+  } = req.body || {};
 
   // Humans submit this form, so 400s are HTML pages, not raw JSON.
   if (!redirect_uri) {
@@ -166,6 +195,29 @@ async function handleAuthorize(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  // PKCE: these fields rode in as hidden form inputs from the GET render.
+  // Re-validate here — a tampered form submit must not bypass PKCE.
+  if (!code_challenge) {
+    renderErrorPage(
+      res,
+      400,
+      "Missing PKCE challenge",
+      `The authorization request is missing its <code>code_challenge</code>. Start the flow again from your MCP client.`,
+    );
+    return;
+  }
+
+  const effectiveMethod = code_challenge_method || "S256";
+  if (effectiveMethod !== "S256") {
+    renderErrorPage(
+      res,
+      400,
+      "Unsupported PKCE method",
+      `Only <code>S256</code> is supported. Got <code>${escapeHtml(effectiveMethod)}</code>.`,
+    );
+    return;
+  }
+
   // Validate the API key against the real SciWeave backend
   const auth = await validateApiKey(api_key);
   if (!auth.valid) {
@@ -178,8 +230,9 @@ async function handleAuthorize(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Encode the API key as an authorization code
-  const code = encodeAuthCode(api_key);
+  // Encode the API key + PKCE challenge as an authorization code.
+  // The challenge is verified at /oauth/token against the client's code_verifier.
+  const code = encodeAuthCode(api_key, code_challenge, "S256");
 
   // Redirect back to the client with the code
   const redirectUrl = new URL(redirect_uri);
