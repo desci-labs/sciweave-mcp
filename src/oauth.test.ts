@@ -17,6 +17,7 @@ import {
   verifyPkce,
   generateClientId,
   assertSigningSecretIsSet,
+  getResourceMetadata,
 } from "./oauth.js";
 
 function makeVerifier(): string {
@@ -187,6 +188,27 @@ describe("assertSigningSecretIsSet", () => {
 
   it("does NOT throw in development (VERCEL_ENV unset, local dev)", () => {
     expect(() => assertSigningSecretIsSet({} as NodeJS.ProcessEnv)).not.toThrow();
+  });
+});
+
+describe("getResourceMetadata", () => {
+  it("returns the passed resourceUrl verbatim (per-path metadata)", () => {
+    // Strict MCP clients (Claude Code) compare the `resource` field
+    // against the URL they connected to and reject on mismatch per
+    // RFC 9728 §3.3. So the caller dictates the resource URL.
+    const rootMeta = getResourceMetadata("https://mcp.sciweave.com", "https://mcp.sciweave.com");
+    expect(rootMeta.resource).toBe("https://mcp.sciweave.com");
+    expect(rootMeta.authorization_servers).toEqual(["https://mcp.sciweave.com"]);
+
+    const mcpMeta = getResourceMetadata("https://mcp.sciweave.com", "https://mcp.sciweave.com/mcp");
+    expect(mcpMeta.resource).toBe("https://mcp.sciweave.com/mcp");
+    expect(mcpMeta.authorization_servers).toEqual(["https://mcp.sciweave.com"]);
+  });
+
+  it("always exposes Bearer header method and sciweave scope", () => {
+    const meta = getResourceMetadata("https://mcp.sciweave.com", "https://mcp.sciweave.com/mcp");
+    expect(meta.bearer_methods_supported).toEqual(["header"]);
+    expect(meta.scopes_supported).toEqual(["sciweave"]);
   });
 });
 

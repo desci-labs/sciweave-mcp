@@ -15,7 +15,18 @@ import { validateApiKey } from "../src/auth.js";
 function getResourceMetadataUrl(req: VercelRequest): string {
   const proto = req.headers["x-forwarded-proto"] || "https";
   const host = req.headers.host || "mcp.sciweave.com";
-  return `${proto}://${host}/.well-known/oauth-protected-resource`;
+  // Point at the well-known URL that matches the MCP endpoint the client
+  // is using. Strict clients (Claude Code) compare the `resource` field
+  // in the metadata against the URL they connected to and reject on
+  // mismatch per RFC 9728 §3.3. Two variants are served at:
+  //   /.well-known/oauth-protected-resource       → resource: <host>
+  //   /mcp/.well-known/oauth-protected-resource   → resource: <host>/mcp
+  const urlPath = (req.url || "/").split("?")[0];
+  const isMcpPath = urlPath === "/mcp" || urlPath.startsWith("/mcp/");
+  const wellKnownPath = isMcpPath
+    ? "/mcp/.well-known/oauth-protected-resource"
+    : "/.well-known/oauth-protected-resource";
+  return `${proto}://${host}${wellKnownPath}`;
 }
 
 export default async function handler(
