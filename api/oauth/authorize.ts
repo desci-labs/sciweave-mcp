@@ -8,6 +8,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { encodeAuthCode } from "../../src/oauth.js";
 import { validateApiKey } from "../../src/auth.js";
 import { isRedirectUriAllowed } from "../../src/redirect-uri.js";
+import { logEvent, requestContext, redirectOrigin } from "../../src/log.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
@@ -28,6 +29,13 @@ function showAuthForm(req: VercelRequest, res: VercelResponse) {
   // must NOT be asked for their API key — the form would submit to a
   // dead redirect. Show a recovery page instead.
   if (!redirect_uri || !isRedirectUriAllowed(redirect_uri)) {
+    logEvent({
+      event: "oauth_authorize_get_bad_redirect",
+      level: "warn",
+      reason: !redirect_uri ? "missing" : "not_allowed",
+      redirect_origin: redirectOrigin(redirect_uri),
+      ...requestContext(req),
+    });
     renderErrorPage(
       res,
       400,
@@ -41,6 +49,12 @@ function showAuthForm(req: VercelRequest, res: VercelResponse) {
   // the client didn't follow OAuth 2.1 correctly — fail before asking the
   // user for their API key. S256 is the only method we support.
   if (!code_challenge) {
+    logEvent({
+      event: "oauth_authorize_get_missing_pkce",
+      level: "warn",
+      redirect_origin: redirectOrigin(redirect_uri),
+      ...requestContext(req),
+    });
     renderErrorPage(
       res,
       400,
@@ -51,6 +65,13 @@ function showAuthForm(req: VercelRequest, res: VercelResponse) {
   }
 
   if (code_challenge_method && code_challenge_method !== "S256") {
+    logEvent({
+      event: "oauth_authorize_get_bad_pkce_method",
+      level: "warn",
+      method: code_challenge_method,
+      redirect_origin: redirectOrigin(redirect_uri),
+      ...requestContext(req),
+    });
     renderErrorPage(
       res,
       400,
@@ -166,6 +187,11 @@ async function handleAuthorize(req: VercelRequest, res: VercelResponse) {
 
   // Humans submit this form, so 400s are HTML pages, not raw JSON.
   if (!redirect_uri) {
+    logEvent({
+      event: "oauth_authorize_post_missing_redirect",
+      level: "warn",
+      ...requestContext(req),
+    });
     renderErrorPage(
       res,
       400,
@@ -176,6 +202,12 @@ async function handleAuthorize(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!isRedirectUriAllowed(redirect_uri)) {
+    logEvent({
+      event: "oauth_authorize_post_bad_redirect",
+      level: "warn",
+      redirect_origin: redirectOrigin(redirect_uri),
+      ...requestContext(req),
+    });
     renderErrorPage(
       res,
       400,
@@ -186,6 +218,12 @@ async function handleAuthorize(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!api_key) {
+    logEvent({
+      event: "oauth_authorize_post_missing_key",
+      level: "warn",
+      redirect_origin: redirectOrigin(redirect_uri),
+      ...requestContext(req),
+    });
     renderErrorPage(
       res,
       400,
@@ -198,6 +236,12 @@ async function handleAuthorize(req: VercelRequest, res: VercelResponse) {
   // PKCE: these fields rode in as hidden form inputs from the GET render.
   // Re-validate here — a tampered form submit must not bypass PKCE.
   if (!code_challenge) {
+    logEvent({
+      event: "oauth_authorize_post_missing_pkce",
+      level: "warn",
+      redirect_origin: redirectOrigin(redirect_uri),
+      ...requestContext(req),
+    });
     renderErrorPage(
       res,
       400,
@@ -209,6 +253,13 @@ async function handleAuthorize(req: VercelRequest, res: VercelResponse) {
 
   const effectiveMethod = code_challenge_method || "S256";
   if (effectiveMethod !== "S256") {
+    logEvent({
+      event: "oauth_authorize_post_bad_pkce_method",
+      level: "warn",
+      method: effectiveMethod,
+      redirect_origin: redirectOrigin(redirect_uri),
+      ...requestContext(req),
+    });
     renderErrorPage(
       res,
       400,
@@ -221,6 +272,13 @@ async function handleAuthorize(req: VercelRequest, res: VercelResponse) {
   // Validate the API key against the real SciWeave backend
   const auth = await validateApiKey(api_key);
   if (!auth.valid) {
+    logEvent({
+      event: "oauth_authorize_post_invalid_key",
+      level: "warn",
+      reason: auth.error,
+      redirect_origin: redirectOrigin(redirect_uri),
+      ...requestContext(req),
+    });
     renderErrorPage(
       res,
       400,

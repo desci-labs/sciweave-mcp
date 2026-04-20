@@ -11,6 +11,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer } from "../src/server.js";
 import { validateApiKey } from "../src/auth.js";
+import { logEvent, requestContext } from "../src/log.js";
 
 function getResourceMetadataUrl(req: VercelRequest): string {
   const proto = req.headers["x-forwarded-proto"] || "https";
@@ -57,6 +58,14 @@ export default async function handler(
   }
 
   if (!apiKey) {
+    // An unauthenticated hit on /mcp is how OAuth discovery starts, so
+    // this is expected in high volume. Log at info, not warn — it only
+    // becomes a symptom when a specific client loops on 401s.
+    logEvent({
+      event: "mcp_auth_missing_key",
+      path: (req.url || "").split("?")[0],
+      ...requestContext(req),
+    });
     // WWW-Authenticate header triggers OAuth flow in MCP clients
     res.setHeader(
       "WWW-Authenticate",
@@ -76,6 +85,13 @@ export default async function handler(
 
   const auth = await validateApiKey(apiKey);
   if (!auth.valid) {
+    logEvent({
+      event: "mcp_auth_invalid_key",
+      level: "warn",
+      reason: auth.error,
+      path: (req.url || "").split("?")[0],
+      ...requestContext(req),
+    });
     res.status(401).json({
       jsonrpc: "2.0",
       error: {

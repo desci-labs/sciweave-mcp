@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import mcpHandler from "./mcp.js";
+import { logEvent, requestContext } from "../src/log.js";
 
 const BASE_URL = "https://mcp.sciweave.com";
 
@@ -46,6 +47,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const isSseGet =
     req.method === "GET" && accept.includes("text/event-stream");
   if (isMcpMethod || isSseGet) {
+    // Signal at info (not warn): this is a working path, but frequency
+    // tells us how many users are misconfiguring with the bare host so
+    // we can weigh docs/UX effort appropriately.
+    logEvent({
+      event: "mcp_bare_host_used",
+      method: req.method,
+      sse: isSseGet,
+      ...requestContext(req),
+    });
     return mcpHandler(req, res);
   }
 
