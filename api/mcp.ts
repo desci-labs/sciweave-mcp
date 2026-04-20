@@ -56,7 +56,7 @@ export default async function handler(
       error: {
         code: -32001,
         message:
-          "Missing API key. Add your SciWeave API key as the authorization token in your Claude connector settings.",
+          'Missing API key. Pass your SciWeave API key as "Authorization: Bearer <key>". Per-client setup guide: https://sciweave.com/web/mcp',
       },
       id: null,
     });
