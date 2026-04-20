@@ -8,6 +8,7 @@
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { decodeAuthCode, verifyPkce } from "../../src/oauth.js";
+import { logEvent, requestContext } from "../../src/log.js";
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -28,6 +29,12 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   const { grant_type, code, code_verifier } = req.body || {};
 
   if (grant_type !== "authorization_code") {
+    logEvent({
+      event: "oauth_token_bad_grant_type",
+      level: "warn",
+      grant_type: typeof grant_type === "string" ? grant_type : null,
+      ...requestContext(req),
+    });
     res.status(400).json({
       error: "unsupported_grant_type",
       error_description: "Only authorization_code grant is supported",
@@ -36,6 +43,11 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!code) {
+    logEvent({
+      event: "oauth_token_missing_code",
+      level: "warn",
+      ...requestContext(req),
+    });
     res.status(400).json({
       error: "invalid_request",
       error_description: "Missing authorization code",
@@ -44,6 +56,11 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!code_verifier) {
+    logEvent({
+      event: "oauth_token_missing_verifier",
+      level: "warn",
+      ...requestContext(req),
+    });
     res.status(400).json({
       error: "invalid_request",
       error_description: "Missing code_verifier. PKCE is required (RFC 7636).",
@@ -54,6 +71,11 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   // Decode the authorization code to extract the API key + stored challenge.
   const decoded = decodeAuthCode(code);
   if (!decoded) {
+    logEvent({
+      event: "oauth_token_invalid_code",
+      level: "warn",
+      ...requestContext(req),
+    });
     res.status(400).json({
       error: "invalid_grant",
       error_description: "Invalid or expired authorization code",
@@ -67,6 +89,11 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   if (
     !verifyPkce(code_verifier, decoded.codeChallenge, decoded.codeChallengeMethod)
   ) {
+    logEvent({
+      event: "oauth_token_pkce_failed",
+      level: "warn",
+      ...requestContext(req),
+    });
     res.status(400).json({
       error: "invalid_grant",
       error_description: "PKCE verification failed",
