@@ -175,11 +175,18 @@ export function getOAuthMetadata(baseUrl: string) {
 }
 
 /**
- * OAuth Protected Resource Metadata (RFC 9728)
+ * OAuth Protected Resource Metadata (RFC 9728).
+ *
+ * The `resource` field MUST be the canonical URL the client is using —
+ * strict clients (Claude Code) reject mismatches per §3.3. Since this
+ * server accepts both `https://mcp.sciweave.com/mcp` (canonical) and
+ * `https://mcp.sciweave.com/` (bare host, routed to the MCP handler),
+ * we serve two variants of this metadata at path-specific well-known
+ * URLs and pass the right `resourceUrl` in each.
  */
-export function getResourceMetadata(baseUrl: string) {
+export function getResourceMetadata(baseUrl: string, resourceUrl: string) {
   return {
-    resource: `${baseUrl}/mcp`,
+    resource: resourceUrl,
     authorization_servers: [baseUrl],
     scopes_supported: ["sciweave"],
     bearer_methods_supported: ["header"],

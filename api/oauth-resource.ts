@@ -13,5 +13,15 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const baseUrl = getBaseUrl(req);
-  res.json(getResourceMetadata(baseUrl));
+
+  // Two well-known paths route to this handler with different `scope`
+  // query params (see vercel.json):
+  //   /.well-known/oauth-protected-resource       → scope=root
+  //   /mcp/.well-known/oauth-protected-resource   → scope=mcp
+  // Each variant declares the matching `resource` URL so strict clients
+  // don't reject us for RFC 9728 mismatch.
+  const scope = req.query.scope;
+  const resourceUrl = scope === "mcp" ? `${baseUrl}/mcp` : baseUrl;
+
+  res.json(getResourceMetadata(baseUrl, resourceUrl));
 }
