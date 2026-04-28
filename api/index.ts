@@ -59,6 +59,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SciWeave MCP Server</title>
 
+  <!-- Favicon — also linked here so favicon resolvers (Google's
+       https://www.google.com/s2/favicons?domain=mcp.sciweave.com used by
+       the Anthropic MCP directory) pick up the SciWeave mark. -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="alternate icon" href="/favicon.ico">
+
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="SciWeave MCP Server">
@@ -193,7 +199,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 </head>
 <body>
   <div class="card">
-    <img class="logo" src="https://sciweave.com/assets/logo-light.svg" alt="SciWeave" width="80" height="80">
+    <img class="logo" src="https://sciweave.com/assets/logo-dark.svg" alt="SciWeave" width="80" height="80">
     <h1>SciWeave</h1>
     <div class="badge">MCP Server</div>
     <p class="desc">Search research papers and get AI-powered answers with citations — right inside Claude.</p>
