@@ -11,6 +11,7 @@ import { InsufficientCreditsError } from "./api-client.js";
 import {
   askResearchQuestionSchema,
   askResearchQuestion,
+  type ProgressRelay,
 } from "./tools/ask.js";
 import {
   listCollectionsSchema,
@@ -31,10 +32,12 @@ import {
   getAccountStatus,
 } from "./tools/account.js";
 
+type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
+
 /** Wrap a tool handler to catch InsufficientCreditsError and return a friendly message */
 function withCreditGuard<T>(
-  fn: (apiKey: string, input: T) => Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }>
-): (apiKey: string, input: T) => Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }> {
+  fn: (apiKey: string, input: T) => Promise<ToolResult>
+): (apiKey: string, input: T) => Promise<ToolResult> {
   return async (apiKey, input) => {
     try {
       return await fn(apiKey, input);
@@ -48,6 +51,26 @@ function withCreditGuard<T>(
       throw err;
     }
   };
+}
+
+/** Variant of withCreditGuard for handlers that take a third progress-relay arg. */
+async function askWithGuard<T>(
+  fn: (apiKey: string, input: T, relay?: ProgressRelay) => Promise<ToolResult>,
+  apiKey: string,
+  input: T,
+  relay?: ProgressRelay
+): Promise<ToolResult> {
+  try {
+    return await fn(apiKey, input, relay);
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      return {
+        content: [{ type: "text" as const, text: err.message }],
+        isError: true,
+      };
+    }
+    throw err;
+  }
 }
 
 export function createServer(apiKey: string): McpServer {
@@ -71,13 +94,21 @@ export function createServer(apiKey: string): McpServer {
   );
 
   // -- Core tool: Ask a research question and get an answer with citations --
+  // The handler receives `extra` from the MCP SDK, which carries the client's
+  // progressToken (in `_meta`) and a per-request `sendNotification` bound to
+  // the active SSE stream. Passing this through enables mid-flight progress
+  // notifications during the long-running upstream call.
   server.tool(
     "ask_research_question",
     "Ask a research question and get an AI-powered answer backed by citations from scientific literature and the user's own paper collections. Supports filtering by year, difficulty level, and collection scope.",
     askResearchQuestionSchema.shape,
     { readOnlyHint: true, title: "Ask Research Question" },
-    async (input) => {
-      return guard(askResearchQuestion)(apiKey, askResearchQuestionSchema.parse(input));
+    async (input, extra) => {
+      const relay = {
+        progressToken: extra?._meta?.progressToken as string | number | undefined,
+        sendNotification: extra?.sendNotification as ProgressRelay["sendNotification"],
+      };
+      return askWithGuard(askResearchQuestion, apiKey, askResearchQuestionSchema.parse(input), relay);
     }
   );
 

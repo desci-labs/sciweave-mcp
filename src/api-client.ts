@@ -168,6 +168,7 @@ export async function askWithCitations(
     listIds?: string[];
     includeLiterature?: boolean;
     filter?: Record<string, unknown>;
+    onProgress?: (event: ProgressEvent) => void;
   }
 ): Promise<AnswerResult> {
   const body: Record<string, unknown> = {
@@ -206,8 +207,15 @@ export async function askWithCitations(
     );
   }
 
-  return consumeSSEStream(res);
+  return consumeSSEStream(res, opts.onProgress);
 }
+
+/** Progress events emitted as upstream SSE flows in. */
+export type ProgressEvent =
+  | { kind: "init"; threadId?: string; searchId?: string }
+  | { kind: "citations"; count: number }
+  | { kind: "content"; chars: number }
+  | { kind: "done" };
 
 // ---------------------------------------------------------------------------
 // Find References (fast citations-only, no LLM answer generation)
@@ -260,7 +268,10 @@ export async function findReferences(
  * AnswerResult. This is the key translation layer — the ML backend streams
  * events, but MCP tools return a single result.
  */
-async function consumeSSEStream(response: Response): Promise<AnswerResult> {
+async function consumeSSEStream(
+  response: Response,
+  onProgress?: (event: ProgressEvent) => void
+): Promise<AnswerResult> {
   const result: AnswerResult = {
     answer: "",
     citations: [],
@@ -275,6 +286,16 @@ async function consumeSSEStream(response: Response): Promise<AnswerResult> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let lastContentEmittedAt = 0;
+  const emitContentProgress = () => {
+    if (!onProgress) return;
+    const now = Date.now();
+    // Throttle content progress to at most one emission per second to avoid
+    // flooding the MCP stream with thousands of micro-notifications.
+    if (now - lastContentEmittedAt < 1000) return;
+    lastContentEmittedAt = now;
+    onProgress({ kind: "content", chars: result.answer.length });
+  };
 
   try {
     while (true) {
@@ -306,11 +327,12 @@ async function consumeSSEStream(response: Response): Promise<AnswerResult> {
                 } else if (parsed?.content && typeof parsed.content === "string") {
                   result.answer += parsed.content;
                 }
-                // Skip non-string content events (e.g., metadata objects)
+                emitContentProgress();
                 break;
               case "citations":
                 if (Array.isArray(parsed)) {
                   result.citations = parsed as Citation[];
+                  onProgress?.({ kind: "citations", count: result.citations.length });
                 }
                 break;
               case "totalResults":
@@ -324,6 +346,11 @@ async function consumeSSEStream(response: Response): Promise<AnswerResult> {
               case "init":
                 result.threadId = parsed.threadId;
                 result.searchId = parsed.searchId;
+                onProgress?.({
+                  kind: "init",
+                  threadId: result.threadId,
+                  searchId: result.searchId,
+                });
                 break;
               case "error":
                 result.error = parsed.message ?? String(parsed);
@@ -332,9 +359,11 @@ async function consumeSSEStream(response: Response): Promise<AnswerResult> {
                 // For events without explicit type, check if it's a stream_event
                 if (parsed.content && typeof parsed.content === "string") {
                   result.answer += parsed.content;
+                  emitContentProgress();
                 }
                 if (parsed.citations) {
                   result.citations = parsed.citations;
+                  onProgress?.({ kind: "citations", count: result.citations.length });
                 }
                 if (parsed.threadId) {
                   result.threadId = parsed.threadId;
@@ -348,6 +377,7 @@ async function consumeSSEStream(response: Response): Promise<AnswerResult> {
             // Non-JSON data line — might be a raw content chunk
             if (currentEvent === "content" || currentEvent === "answer") {
               result.answer += data;
+              emitContentProgress();
             }
           }
         }
@@ -357,5 +387,6 @@ async function consumeSSEStream(response: Response): Promise<AnswerResult> {
     reader.releaseLock();
   }
 
+  onProgress?.({ kind: "done" });
   return result;
 }
