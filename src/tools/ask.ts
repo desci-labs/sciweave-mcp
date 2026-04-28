@@ -1,5 +1,26 @@
 import { z } from "zod";
-import { askWithCitations } from "../api-client.js";
+import { askWithCitations, type ProgressEvent } from "../api-client.js";
+
+/**
+ * Optional MCP progress relay. The MCP SDK gives tool handlers a
+ * `sendNotification` function and may include a `progressToken` in `_meta`.
+ * When both are present we forward upstream stream events as
+ * `notifications/progress` messages so (a) the SSE response stream sees
+ * regular traffic and stays alive past intermediary idle timeouts and
+ * (b) the client can render progress to the user instead of a silent hang.
+ */
+export type ProgressRelay = {
+  progressToken?: string | number;
+  sendNotification?: (notification: {
+    method: "notifications/progress";
+    params: {
+      progressToken: string | number;
+      progress: number;
+      total?: number;
+      message?: string;
+    };
+  }) => Promise<void>;
+};
 
 export const askResearchQuestionSchema = z.object({
   query: z
@@ -40,7 +61,8 @@ export type AskResearchQuestionInput = z.infer<typeof askResearchQuestionSchema>
 
 export async function askResearchQuestion(
   apiKey: string,
-  input: AskResearchQuestionInput
+  input: AskResearchQuestionInput,
+  relay?: ProgressRelay
 ) {
   const queryText = input.query || input.question;
   if (!queryText) {
@@ -61,13 +83,22 @@ export async function askResearchQuestion(
     };
   }
 
-  const result = await askWithCitations(apiKey, {
-    query: queryText,
-    difficulty: input.difficulty,
-    listIds: input.list_ids,
-    includeLiterature: input.include_literature,
-    filter,
-  });
+  // Build the progress callback that forwards upstream stream events to the
+  // MCP client. We always run a heartbeat (below) regardless of whether the
+  // client provided a progressToken — the heartbeat keeps the SSE stream
+  // active even when the client doesn't render the progress messages.
+  const onProgress = makeProgressForwarder(relay);
+
+  const result = await withHeartbeat(relay, () =>
+    askWithCitations(apiKey, {
+      query: queryText,
+      difficulty: input.difficulty,
+      listIds: input.list_ids,
+      includeLiterature: input.include_literature,
+      filter,
+      onProgress,
+    })
+  );
 
   if (result.error) {
     return {
@@ -115,4 +146,71 @@ export async function askResearchQuestion(
       },
     ],
   };
+}
+
+function makeProgressForwarder(
+  relay: ProgressRelay | undefined
+): ((event: ProgressEvent) => void) | undefined {
+  if (!relay?.sendNotification || relay.progressToken === undefined) {
+    return undefined;
+  }
+  const token = relay.progressToken;
+  const send = relay.sendNotification;
+  let progress = 0;
+  return (event) => {
+    progress += 1;
+    let message: string | undefined;
+    switch (event.kind) {
+      case "init":
+        message = "Starting research…";
+        break;
+      case "citations":
+        message = `Found ${event.count} citation${event.count === 1 ? "" : "s"}`;
+        break;
+      case "content":
+        message = `Synthesising answer (${event.chars.toLocaleString()} chars)`;
+        break;
+      case "done":
+        message = "Finalising…";
+        break;
+    }
+    // Notifications failures must not abort the tool — swallow errors.
+    void send({
+      method: "notifications/progress",
+      params: { progressToken: token, progress, message },
+    }).catch(() => {});
+  };
+}
+
+/**
+ * Run `work` and emit a heartbeat notification every 10s until it settles.
+ * Even when the client did not provide a progressToken the helper is a no-op,
+ * so callers don't need to branch on relay presence.
+ */
+async function withHeartbeat<T>(
+  relay: ProgressRelay | undefined,
+  work: () => Promise<T>
+): Promise<T> {
+  if (!relay?.sendNotification || relay.progressToken === undefined) {
+    return work();
+  }
+  const token = relay.progressToken;
+  const send = relay.sendNotification;
+  let beat = 0;
+  const timer = setInterval(() => {
+    beat += 1;
+    void send({
+      method: "notifications/progress",
+      params: {
+        progressToken: token,
+        progress: beat,
+        message: `Still working… (${beat * 10}s)`,
+      },
+    }).catch(() => {});
+  }, 10_000);
+  try {
+    return await work();
+  } finally {
+    clearInterval(timer);
+  }
 }

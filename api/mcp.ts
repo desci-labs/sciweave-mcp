@@ -88,11 +88,14 @@ export default async function handler(
   }
 
   // -- Create a fresh server + transport per request (stateless) --
+  // SSE mode (enableJsonResponse: false, the SDK default): the response is a
+  // text/event-stream that closes after the result is sent. This lets long-
+  // running tools emit notifications/progress mid-flight, which (a) keeps the
+  // connection alive past intermediary idle timeouts and (b) shows the user
+  // that work is happening instead of a silent multi-second hang.
   const server = createServer(apiKey);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined, // Stateless — no session persistence
-    enableJsonResponse: true, // Return single JSON response & end the connection
-    // (default SSE mode keeps the stream open, which hangs serverless clients)
   });
 
   await server.connect(transport);
