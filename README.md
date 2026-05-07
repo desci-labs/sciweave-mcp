@@ -1,3 +1,5 @@
+<p align="center"><img src="public/logo.png" alt="SciWeave" width="120" /></p>
+
 # SciWeave MCP Server
 
 Ground Claude, ChatGPT, Cursor, and Windsurf in 300M scientific works — every citation a verifiable DOI.
