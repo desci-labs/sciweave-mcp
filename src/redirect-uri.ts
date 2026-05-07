@@ -19,6 +19,11 @@
 const HOSTED_ORIGINS = [
   "https://claude.ai",
   "https://claude.com",
+  // Smithery's OAuth callback for hosted introspection / install flows
+  // (https://smithery.run/oauth/callback). Without this, every Smithery
+  // install — and the registry's tool-discovery bot — dead-ends at the
+  // /oauth/authorize allowlist check.
+  "https://smithery.run",
 ];
 
 // WHATWG URL parser returns IPv6 hostnames wrapped in brackets (e.g. "[::1]"),
