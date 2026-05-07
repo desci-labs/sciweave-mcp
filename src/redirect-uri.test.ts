@@ -62,13 +62,20 @@ describe("isRedirectUriAllowed", () => {
       expect(isRedirectUriAllowed("https://claude.com/api/callback")).toBe(true);
     });
 
+    it("accepts https://smithery.run (Smithery introspector + install flow)", () => {
+      expect(isRedirectUriAllowed("https://smithery.run/oauth/callback")).toBe(true);
+    });
+
     it("rejects http (unencrypted) for hosted origins", () => {
       expect(isRedirectUriAllowed("http://claude.ai/callback")).toBe(false);
+      expect(isRedirectUriAllowed("http://smithery.run/oauth/callback")).toBe(false);
     });
 
     it("rejects subdomain spoofing of hosted origins", () => {
       expect(isRedirectUriAllowed("https://claude.ai.evil.com/callback")).toBe(false);
       expect(isRedirectUriAllowed("https://evil.claude.ai/callback")).toBe(false);
+      expect(isRedirectUriAllowed("https://smithery.run.evil.com/cb")).toBe(false);
+      expect(isRedirectUriAllowed("https://evil.smithery.run/cb")).toBe(false);
     });
   });
 
