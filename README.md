@@ -71,6 +71,7 @@ Add `https://mcp.sciweave.com/mcp` as a remote MCP server in your custom GPT or 
 |------|-------------|
 | `ask_research_question` | AI answer with inline citations grounded in SciWeave's index. Supports `min_year` / `max_year` filters. |
 | `find_references` | Fast paper lookup (~1s). Returns title, authors, year, DOI, URL, abstract snippet. No AI synthesis. |
+| `find_open_access_link` | Find where a paper can be read, by DOI or link — often a repository or preprint copy of a paywalled paper. |
 | `get_research_thread` | Resume a prior research conversation by `thread_id` (returned by `ask_research_question`). |
 | `list_collections` | List your saved paper collections. |
 | `get_collection_papers` | Get papers in a specific collection with full metadata. |
@@ -125,6 +126,27 @@ References (5 papers in 1.2s):
     Year: 2023 · DOI: 10.1016/j.ijpharm.2023.01.015
     Snippet: "Storage temperature significantly impacts mRNA integrity..."
 ```
+
+### Find where a paper can be read
+
+> **Prompt:** "Where can I read https://www.nature.com/articles/nature12373?"
+
+`find_open_access_link` resolves the open-access copy and returns links — nothing is downloaded, so your client fetches the paper itself. arXiv, bioRxiv/medRxiv and PubMed Central links map straight to their full-text source; anything else is resolved through its DOI (given, taken from the URL, or read from the page's own `citation_doi` tag) via OpenAlex, which often turns up a repository or preprint copy of a paywalled paper.
+
+```
+Nanometre-scale thermometry in a living cell
+Authors: Georg Kucsko, Peter C. Maurer, ... · Year: 2013 · Journal: Nature
+DOI: 10.1038/nature12373 · Open access: green
+
+Best link: https://arxiv.org/pdf/1304.1068
+  (OA PDF (arXiv), likely PDF)
+
+Alternatives:
+- https://www.ebi.ac.uk/europepmc/webservices/rest/PMC4221854/fullTextXML
+  (OA landing page (PubMed Central) → Europe PMC full-text XML)
+```
+
+Papers with no open-access copy are reported as such, with the publisher page as a fallback, rather than a link that won't work.
 
 ### Check account status
 
