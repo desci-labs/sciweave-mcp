@@ -31,6 +31,10 @@ import {
   getAccountStatusSchema,
   getAccountStatus,
 } from "./tools/account.js";
+import {
+  findOpenAccessLinkSchema,
+  findOpenAccessLink,
+} from "./tools/open-access-link.js";
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
 
@@ -160,6 +164,19 @@ export function createServer(apiKey: string): McpServer {
     { readOnlyHint: true, title: "Find References" },
     async (input) => {
       return guard(findReferencesTool)(apiKey, findReferencesSchema.parse(input));
+    }
+  );
+
+  // -- Locate an open-access copy of a paper, without downloading it --
+  // Returns links only: one OpenAlex lookup, no article bytes through this
+  // server. Retrieving the paper is left to the client.
+  server.tool(
+    "find_open_access_link",
+    "Find where a paper can be read, given a DOI or link. Returns the best open-access URL plus alternatives — often a repository or preprint copy of a paper whose publisher version is paywalled. arXiv, bioRxiv/medRxiv and PubMed Central links are mapped to their full-text source. Nothing is downloaded; fetch the returned link to read the paper. Use after find_references or ask_research_question when the user wants to read a specific paper rather than a summary.",
+    findOpenAccessLinkSchema.shape,
+    { readOnlyHint: true, openWorldHint: true, title: "Find Open-Access Link" },
+    async (input) => {
+      return findOpenAccessLink(findOpenAccessLinkSchema.parse(input));
     }
   );
 
