@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { findReferences } from "../api-client.js";
+import { findReferences, trackUsage } from "../api-client.js";
 
 export const findReferencesSchema = z.object({
   query: z
@@ -21,6 +21,20 @@ export async function findReferencesTool(
   apiKey: string,
   input: FindReferencesInput
 ) {
+  // Deduct + log usage BEFORE doing work (so broke users can't extract results)
+  const tracked = await trackUsage(apiKey, "find_references");
+  if (!tracked.ok) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: `Error: ${tracked.error ?? "Usage tracking failed"}`,
+        },
+      ],
+      isError: true,
+    };
+  }
+
   const result = await findReferences(apiKey, {
     query: input.query,
     top_k: input.top_k,

@@ -1,9 +1,19 @@
 import { z } from "zod";
-import { listCollections as fetchCollections, getCollectionPapers as fetchPapers } from "../api-client.js";
+import { listCollections as fetchCollections, getCollectionPapers as fetchPapers, trackUsage } from "../api-client.js";
+
+function trackingError(error: string) {
+  return {
+    content: [{ type: "text" as const, text: `Error: ${error}` }],
+    isError: true,
+  };
+}
 
 export const listCollectionsSchema = z.object({});
 
 export async function listCollections(apiKey: string) {
+  const tracked = await trackUsage(apiKey, "list_collections");
+  if (!tracked.ok) return trackingError(tracked.error ?? "Usage tracking failed");
+
   const lists = await fetchCollections(apiKey);
 
   if (lists.length === 0) {
@@ -48,6 +58,9 @@ export async function getCollectionPapers(
   apiKey: string,
   input: GetCollectionPapersInput
 ) {
+  const tracked = await trackUsage(apiKey, "get_collection_papers");
+  if (!tracked.ok) return trackingError(tracked.error ?? "Usage tracking failed");
+
   const papers = await fetchPapers(apiKey, input.list_id);
 
   if (papers.length === 0) {
