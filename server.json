@@ -1,0 +1,25 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.desci-labs/sciweave-mcp",
+  "title": "SciWeave",
+  "description": "AI research grounded in 300M scientific works — every citation a verifiable DOI.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/desci-labs/sciweave-mcp",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.sciweave.com/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "SciWeave API key (sent as 'Bearer <key>'). Get one at https://mcp.sciweave.com.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
