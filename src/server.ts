@@ -35,6 +35,10 @@ import {
   findOpenAccessLinkSchema,
   findOpenAccessLink,
 } from "./tools/open-access-link.js";
+import {
+  checkRetractionsSchema,
+  checkRetractions,
+} from "./tools/check-retractions.js";
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
 
@@ -177,6 +181,17 @@ export function createServer(apiKey: string): McpServer {
     { readOnlyHint: true, openWorldHint: true, title: "Find Open-Access Link" },
     async (input) => {
       return findOpenAccessLink(findOpenAccessLinkSchema.parse(input));
+    }
+  );
+
+  // No API key or credits: only the DOIs go to the public SaneCite API.
+  server.tool(
+    "check_retractions",
+    "Check up to 300 DOIs for retraction notices and expressions of concern, such as the DOIs from find_references. Returns each notice with its date, link and reasons. Finding no notice doesn't mean a paper is sound.",
+    checkRetractionsSchema.shape,
+    { readOnlyHint: true, openWorldHint: true, title: "Check Retractions" },
+    async (input) => {
+      return checkRetractions(checkRetractionsSchema.parse(input));
     }
   );
 

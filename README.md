@@ -72,6 +72,7 @@ Add `https://mcp.sciweave.com/mcp` as a remote MCP server in your custom GPT or 
 | `ask_research_question` | AI answer with inline citations grounded in SciWeave's index. Supports `min_year` / `max_year` filters. |
 | `find_references` | Fast paper lookup (~1s). Returns title, authors, year, DOI, URL, abstract snippet. No AI synthesis. |
 | `find_open_access_link` | Find where a paper can be read, by DOI or link — often a repository or preprint copy of a paywalled paper. |
+| `check_retractions` | Check up to 300 DOIs for retraction notices and expressions of concern, via the free [SaneCite API](https://sanecite.com/data). No credits used. |
 | `get_research_thread` | Resume a prior research conversation by `thread_id` (returned by `ask_research_question`). |
 | `list_collections` | List your saved paper collections. |
 | `get_collection_papers` | Get papers in a specific collection with full metadata. |
@@ -147,6 +148,25 @@ Alternatives:
 ```
 
 Papers with no open-access copy are reported as such, with the publisher page as a fallback, rather than a link that won't work.
+
+### Check citations for retractions
+
+> **Prompt:** "Have any of the papers you just cited been retracted?"
+
+`check_retractions` takes the DOIs and returns any notice on record. Finding no notice doesn't mean a paper is sound.
+
+```
+Checked 2 DOIs.
+
+1 with a notice:
+- 10.1038/s41586-021-04096-9: Retracted (2022-05-30)
+  Notice: https://doi.org/10.1038/s41586-022-04869-w
+  Reasons: Concerns/Issues about Results and/or Conclusions; Error in Analyses
+
+No notice found for the other 1. That means none is on record, not that a paper is sound or that the DOI exists.
+
+Source: Retraction Watch database, via Crossref, through the SaneCite API (https://sanecite.com/data). Data as of 2026-11-05.
+```
 
 ### Check account status
 
